@@ -1,0 +1,58 @@
+format: mlker.model
+schema_version: 2
+model:
+  id: shared_branches
+  revision: r1
+  name: Shared encoder and tied projection
+  entry: main
+  inputs: [left, right]
+  outputs: [features]
+graphs:
+  - id: main
+    inputs:
+      - {id: left, tensor: {dtype: float32, shape: [B, 4]}}
+      - {id: right, tensor: {dtype: float32, shape: [B, 4]}}
+    outputs: [{id: features, tensor: {shape: [B, 6]}}]
+    nodes:
+      - id: left_call
+        kind: module
+        registry: core.Linear
+        instance_id: encoder
+        parameter_ids: {weight: projection_weight}
+        params: {in_features: 4, out_features: 3}
+        inputs: [{id: x, tensor: {}}]
+        outputs: [{id: out, tensor: {}}]
+      - id: right_call
+        kind: module
+        registry: core.Linear
+        instance_id: encoder
+        params: {in_features: 4, out_features: 3}
+        inputs: [{id: x, tensor: {}}]
+        outputs: [{id: out, tensor: {}}]
+      - id: auxiliary
+        kind: module
+        registry: core.Linear
+        parameter_ids: {weight: projection_weight}
+        params: {in_features: 4, out_features: 3}
+        inputs: [{id: x, tensor: {}}]
+        outputs: [{id: out, tensor: {}}]
+      - id: sum
+        kind: operator
+        registry: core.Add
+        inputs: [{id: a, tensor: {}}, {id: b, tensor: {}}]
+        outputs: [{id: out, tensor: {}}]
+      - id: join
+        kind: operator
+        registry: core.Concat
+        params: {axis: -1}
+        inputs: [{id: a, tensor: {}}, {id: b, tensor: {}}]
+        outputs: [{id: out, tensor: {}}]
+    edges:
+      - {from: {input: left}, to: {node: left_call, port: x}}
+      - {from: {input: right}, to: {node: right_call, port: x}}
+      - {from: {input: left}, to: {node: auxiliary, port: x}}
+      - {from: {node: left_call, port: out}, to: {node: sum, port: a}}
+      - {from: {node: auxiliary, port: out}, to: {node: sum, port: b}}
+      - {from: {node: sum, port: out}, to: {node: join, port: a}}
+      - {from: {node: right_call, port: out}, to: {node: join, port: b}}
+      - {from: {node: join, port: out}, to: {output: features}}

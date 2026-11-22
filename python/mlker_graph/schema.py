@@ -1,7 +1,8 @@
-"""Check the version envelope before dispatching to the v1 schema."""
+"""Check the version envelope before dispatching to a version-specific schema."""
 
 import json
 import math
+from copy import deepcopy
 from dataclasses import replace
 from importlib.resources import files
 
@@ -15,7 +16,20 @@ IntegerValidator = validators.extend(Draft7Validator, type_checker=Draft7Validat
     "integer", lambda checker, instance: type(instance) is int
 ))
 SCHEMA = json.loads(files(__package__).joinpath("schema-v1.json").read_text(encoding="utf-8"))
-VALIDATOR = IntegerValidator(SCHEMA)
+SCHEMA_V2 = deepcopy(SCHEMA)
+SCHEMA_V2["title"] = "MLKer model document v2"
+SCHEMA_V2["properties"]["schema_version"] = {"const": 2}
+identity = {"$ref": "#/definitions/id"}
+SCHEMA_V2["definitions"]["node"]["properties"].update({
+    "instance_id": identity,
+    "parameter_ids": {"type": "object", "propertyNames": identity, "additionalProperties": identity},
+})
+int_list = {"type": "array", "items": {"type": "integer"}}
+SCHEMA_V2["definitions"]["binding"]["anyOf"].append(int_list)
+parameter = SCHEMA_V2["definitions"]["parameter"]["properties"]
+parameter["type"]["enum"].append("ints")
+parameter["default"] = {"anyOf": [parameter["default"], int_list]}
+VALIDATORS = {1: IntegerValidator(SCHEMA), 2: IntegerValidator(SCHEMA_V2)}
 
 
 def invalid_data(value, at: Location, ancestors: set[int]):
@@ -45,14 +59,14 @@ def schema_diagnostics(document: ModelDocument) -> list[Diagnostic]:
     if data.get("format") != "mlker.model":
         return [Diagnostic("invalid_format", "error", "Expected format mlker.model.", root.child("format"))]
     version = data.get("schema_version")
-    if type(version) is not int or version != 1:
-        return [Diagnostic("unsupported_version", "error", f"Expected schema version 1, found {version!r}.",
+    if type(version) is not int or version not in VALIDATORS:
+        return [Diagnostic("unsupported_version", "error", f"Expected schema version 1 or 2, found {version!r}.",
                            root.child("schema_version"))]
 
     diagnostics = list(invalid_data(data, root, set()))
     if diagnostics:
         return diagnostics
-    for issue in VALIDATOR.iter_errors(data):
+    for issue in VALIDATORS[version].iter_errors(data):
         parts = list(issue.absolute_path)
         location = root.child(*parts)
         current = data

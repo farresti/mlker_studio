@@ -8,7 +8,7 @@ from . import ir
 from .contracts import GraphDefinition, check_operation, check_ports, resolve_parameters
 from .diagnostics import Diagnostic, Location, ModelError
 from .document import ModelDocument
-from .registry import REGISTRY, Argument, Rule
+from .registry import REGISTRY, Argument, Rule, literal
 from .schema import schema_diagnostics
 from .wiring import resolve_edges
 
@@ -47,7 +47,7 @@ def read_definitions(raw_graphs, root, issues):
         at = replace(at, graph=key)
         params = {}
         for name, value, loc in declarations(raw.get("parameters", []), at.child("parameters"), issues):
-            param = ir.Parameter(name, value["type"], value["default"], loc)
+            param = ir.Parameter(name, value["type"], literal(value["default"]), loc)
             if not Rule(param.type).accepts(param.default):
                 issues.append(Diagnostic("parameter_value", "error", f"Default for {name} must be {param.type}.", loc))
             params[name] = param
@@ -77,7 +77,7 @@ def graph_order(definitions, blocks, issues):
         return ()
 
 
-def compile_graph(definition, blocks, definitions, issues):
+def compile_graph(definition, blocks, definitions, issues, version):
     raw, at = definition.raw, definition.location
     interfaces = {None: definition.ports}
     nodes = {}
@@ -107,7 +107,15 @@ def compile_graph(definition, blocks, definitions, issues):
             target = ir.OpaqueRef(item["source_op"])
             issues.append(Diagnostic("opaque_node", "warning", "Only the declared opaque ports can be checked.", loc))
         params = resolve_parameters(item.get("params", {}), signature, definition, inherited, loc.child("params"), issues)
-        nodes[key] = ir.Node(key, kind, target, ports["inputs"], ports["outputs"], params, loc)
+        has_identity = "instance_id" in item or "parameter_ids" in item
+        if has_identity and version == 1:
+            issues.append(Diagnostic("sharing_version", "error", "Explicit sharing requires schema version 2.", loc))
+        if "instance_id" in item and kind not in ("module", "block"):
+            issues.append(Diagnostic("sharing_kind", "error", "Only modules and blocks have instance identity.", loc))
+        if "parameter_ids" in item and kind != "module":
+            issues.append(Diagnostic("sharing_kind", "error", "Only module nodes expose parameter slots.", loc))
+        nodes[key] = ir.Node(key, kind, target, ports["inputs"], ports["outputs"], params, loc,
+                             item.get("instance_id"), deepcopy(item.get("parameter_ids", {})))
     edges = resolve_edges(raw["edges"], interfaces, at, issues)
     return ir.Graph(raw["id"], definition.ports["inputs"], definition.ports["outputs"],
                     definition.parameters, nodes, edges, at)
@@ -153,7 +161,7 @@ def analyze(document: ModelDocument) -> tuple[list[Diagnostic], ir.Model | None]
     order = graph_order(definitions, blocks, issues)
     if issues:
         return issues, None
-    graphs = {key: compile_graph(definitions[key], blocks, definitions, issues) for key in order}
+    graphs = {key: compile_graph(definitions[key], blocks, definitions, issues, data["schema_version"]) for key in order}
     if any(problem.severity == "error" for problem in issues):
         return issues, None
     result = ir.Model(model["id"], model["revision"], model["name"], model.get("description", ""),

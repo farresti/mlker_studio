@@ -4,13 +4,13 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "mlker-graph"
-version = "0.1.0"
+version = "0.2.0"
 description = "MLKer Studio model documents, validation, and canonical graph IR"
 requires-python = ">=3.10"
 dependencies = ["PyYAML>=6,<7", "jsonschema>=4,<5"]
 
 [tool.setuptools]
-packages = ["mlker_graph"]
+packages = ["mlker_graph", "mlker_graph.pytorch"]
 
 [tool.setuptools.package-data]
 mlker_graph = ["schema-v1.json"]

@@ -61,7 +61,7 @@ class GraphTests(unittest.TestCase):
     def test_schema_envelope_ids_and_types(self):
         cases = [
             (("format",), "unknown", "invalid_format"),
-            (("schema_version",), 2, "unsupported_version"),
+            (("schema_version",), 3, "unsupported_version"),
             (("schema_version",), True, "unsupported_version"),
             (("schema_version",), 1.0, "unsupported_version"),
             (("graphs",), {}, "schema"),

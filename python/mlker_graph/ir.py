@@ -1,10 +1,10 @@
 """Canonical declarations and resolved handles for a validated model revision."""
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any, Literal
 
 from .diagnostics import Location
-from .registry import Operation, ParameterType, Scalar
+from .registry import Operation, ParameterType, ParameterValue
 
 
 @dataclass(frozen=True)
@@ -40,13 +40,13 @@ class Port:
 class Parameter:
     id: str
     type: ParameterType
-    default: Scalar
+    default: ParameterValue
     location: Location
 
 
 @dataclass(frozen=True)
 class Binding:
-    value: Scalar  # Effective value with the containing graph's defaults.
+    value: ParameterValue  # Effective value with the containing graph's defaults.
     reference: Parameter | None = None
 
 
@@ -78,6 +78,8 @@ class Node:
     outputs: dict[str, Port]
     parameters: dict[str, Binding]
     location: Location
+    instance_id: str | None = None
+    parameter_ids: dict[str, str] = field(default_factory=dict)
 
 
 @dataclass(frozen=True)

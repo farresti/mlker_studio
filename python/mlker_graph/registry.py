@@ -5,23 +5,32 @@ from types import MappingProxyType
 from typing import Literal, Mapping
 
 Scalar = int | float | bool | str
-ParameterType = Literal["int", "float", "bool", "string"]
+ParameterValue = Scalar | tuple[int, ...]
+ParameterType = Literal["int", "float", "bool", "string", "ints"]
+
+
+def literal(value):
+    return tuple(value) if isinstance(value, list) else value
 
 
 @dataclass(frozen=True)
 class Rule:
     type: ParameterType
     minimum: int | None = None
+    maximum: int | None = None
 
-    def accepts(self, value: Scalar) -> bool:
+    def accepts(self, value: ParameterValue) -> bool:
+        if self.type == "ints":
+            return isinstance(value, tuple) and all(type(x) is int for x in value)
         types = {"int": (int,), "float": (int, float), "bool": (bool,), "string": (str,)}
-        return type(value) in types[self.type] and (self.minimum is None or value >= self.minimum)
+        return (type(value) in types[self.type] and (self.minimum is None or value >= self.minimum)
+                and (self.maximum is None or value <= self.maximum))
 
 
 @dataclass(frozen=True)
 class Argument:
     rule: Rule
-    default: Scalar | None = None  # None denotes a required argument.
+    default: ParameterValue | None = None  # None denotes a required argument.
 
 
 @dataclass(frozen=True)
@@ -48,7 +57,15 @@ operations = (
         "kernel_size": Argument(positive), "stride": Argument(positive, 1),
         "padding": Argument(nonnegative, 0), "bias": Argument(Rule("bool"), True),
     }, (3, 4)),
-    Operation("core.ReLU", "operator", unary, out, {}),
+    *(Operation("core." + name, "operator", unary, out, {})
+      for name in ("ReLU", "Sigmoid", "Tanh", "GELU", "SiLU")),
+    Operation("core.BatchNorm2d", "module", unary, out, {"num_features": Argument(positive)}, (4,)),
+    Operation("core.Dropout", "module", unary, out, {"p": Argument(Rule("float", 0, 1), 0.5)}),
+    Operation("core.AdaptiveAvgPool2d", "operator", unary, out, {
+        "height": Argument(positive), "width": Argument(positive),
+    }, (3, 4)),
+    Operation("core.Reshape", "operator", unary, out, {"shape": Argument(Rule("ints"))}),
+    Operation("core.Permute", "operator", unary, out, {"dims": Argument(Rule("ints"))}),
     Operation("core.MaxPool2d", "operator", unary, out, {
         "kernel_size": Argument(positive), "stride": Argument(positive),
     }, (3, 4)),

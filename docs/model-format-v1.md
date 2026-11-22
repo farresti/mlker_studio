@@ -87,3 +87,5 @@ Unknown record fields and extension values survive a semantic load/save round tr
 Diagnostics contain `code`, `severity`, `message` and a `location` with source path, JSON Pointer, and graph/node IDs where known. Reader errors include line and column when the parser supplies them. For example, an unconnected required input can point to `/graphs/0/nodes/1/inputs/0`. Validation stops at a failed prerequisite stage. Independent checks within a stage can return multiple findings. Warnings permit IR construction.
 
 The format and compiler currently support declared tensor contracts, static wiring and scalar parameters. Full broadcasting, symbolic equation solving, derived shapes, dynamic control flow, weight sharing and external model execution require later compiler work. The [format decision](decisions/0003-model-graph.md) records compatibility policy and importer limitations.
+
+For the additional registered operations, v2 sharing fields and integer-list parameters, see the [PyTorch compiler guide](pytorch-compiler.md).

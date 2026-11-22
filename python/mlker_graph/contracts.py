@@ -5,7 +5,7 @@ from typing import Mapping
 
 from .diagnostics import Diagnostic, Location
 from .ir import Binding, Parameter, Port
-from .registry import Argument, Operation, Rule
+from .registry import Argument, Operation, Rule, literal
 from .wiring import compare_tensors
 
 
@@ -74,14 +74,17 @@ def resolve_parameters(raw: dict, signature: Mapping[str, Argument] | None, grap
                 continue
             value = reference.default
 
+        value = literal(value)
         rules = set(inherited.get(key, ()))
         if signature is not None:
             rules.add(signature[key].rule)
-        for rule in sorted(rules, key=lambda r: (r.type, r.minimum is not None, r.minimum or 0)):
+        for rule in sorted(rules, key=lambda r: (r.type, r.minimum is not None, r.minimum or 0, r.maximum is not None, r.maximum or 0)):
             if reference:
                 graph.constraints.setdefault(reference.id, set()).add(rule)
             if (reference and reference.type != rule.type) or not rule.accepts(value):
                 constraint = f" >= {rule.minimum}" if rule.minimum is not None else ""
+                if rule.maximum is not None:
+                    constraint += f" and <= {rule.maximum}"
                 issues.append(Diagnostic("parameter_value", "error", f"{key} requires {rule.type}{constraint}.", at))
         bindings[key] = Binding(value, reference)
     return bindings

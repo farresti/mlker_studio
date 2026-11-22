@@ -82,6 +82,29 @@ save_model(document, "two-heads.yaml")
 
 The [format specification](docs/model-format-v1.md) describes the YAML fields, parameter lookup, hierarchy and round-trip guarantees.
 
+## Compile and run a PyTorch model
+
+With the graph package installed, compile the CNN from the repository root.
+
+```bash
+python -m mlker_graph.pytorch examples/models/v1/cnn.yaml exports/cnn
+```
+
+In a Python environment with PyTorch 2.x, run a CPU forward and backward pass from the repository root. For a **fresh CPU-only Linux environment**, install the generated requirement with `python -m pip install --index-url https://download.pytorch.org/whl/cpu -r exports/cnn/requirements.txt`. An existing compatible PyTorch installation can run the export directly.
+
+```python
+import torch
+from exports.cnn import Model
+
+model = Model()
+scores = model(torch.randn(2, 1, 8, 8))
+assert scores.shape == (2, 5)
+scores.sum().backward()
+assert all(p.grad is not None for p in model.parameters())
+```
+
+The [compiler guide](docs/pytorch-compiler.md) covers the Python API, emitted files, supported operators, sharing, and diagnostics. Runtime tests run when the test interpreter can import PyTorch.
+
 ## Checks
 
 Run these commands from the repository root after desktop and graph package setup.
