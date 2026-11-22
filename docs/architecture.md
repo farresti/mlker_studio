@@ -1,0 +1,60 @@
+# MLKer Studio architecture
+
+Milestone 0 establishes one working path through the desktop stack. Opening Home checks the Rust backend, the local database and the Python interpreter. Refresh runs those checks again. ONNX Inspector, Experiments, Model Builder and Settings have navigable placeholders.
+
+## Repository map
+
+| Location | Responsibility |
+| --- | --- |
+| `src/main.tsx`, `src/style.css` | React navigation, views and service status |
+| `src/status.ts` | Typed client of the Tauri command |
+| `src-tauri/src/main.rs` | Native entry point, path resolution and command composition |
+| `src-tauri/src/database.rs` | SQLite file, schema version and transaction |
+| `src-tauri/src/worker.rs` | Child lifetime, protocol validation and timeout |
+| `src-tauri/tests/` | Service integration tests with real processes and files |
+| `python/mlker_worker/`, `python/tests/` | Python entry point and independent wire tests |
+| `docs/decisions/` | Reasons for the process and persistence boundaries |
+
+## Status request
+
+```mermaid
+sequenceDiagram
+    participant UI as React in WebKitGTK
+    participant App as Rust / Tauri
+    participant DB as SQLite file
+    participant Worker as Python process
+    UI->>App: invoke("app_status")
+    par Storage check on a blocking thread
+        App->>DB: Open, check or initialize schema, commit
+        DB-->>App: Schema version or error
+    and Worker check with asynchronous pipes
+        App->>Worker: One JSON Lines ping, then close stdin
+        Worker-->>App: One correlated response, then exit
+    end
+    App-->>UI: Application version and three subsystem results
+```
+
+The application command takes no arguments. It returns an object with a `version` string and `backend`, `database` and `worker` objects. Each has an `available` boolean and a `detail` string for display. A successful invocation establishes that the backend is reachable. SQLite and Python can each fail independently. If the desktop bridge itself is unavailable, React shows the invocation error and marks service state unknown. The browser-only Vite preview uses that same display.
+
+Tauri resolves the database directory using the application identifier. SQLite opens on a blocking thread because its file and lock operations are synchronous. An immediate transaction serializes schema initialization, including concurrent first launches. Version 1 reserves the application file for future metadata tables. Initialization checks the existing version before changing anything. The connection closes at the end of each check.
+
+The Python service runs an interpreter executable with fixed arguments and the worker package directory from Tauri's resources. A fresh process per probe exercises startup and shutdown and keeps the implementation small. The ID is scoped to that child's pipes. Rust bounds the reply size and enforces a five-second exchange deadline. Python logs to inherited stderr. See the [worker protocol](worker-protocol.md).
+
+## Reading the Rust code with a Python background
+
+- A crate is a buildable Rust package component. The library exports the database and worker services. The binary registers the Tauri command and uses those same services. Cargo's `desktop` feature lets service tests run on a machine without GTK.
+- `Result<T, E>` is a value that holds either a successful result or an error. The `?` operator returns an error to the caller early. The command converts service errors to displayable status.
+- Ownership determines when resources close. Dropping the child's stdin sends EOF. Dropping a SQLite connection closes its handle, and dropping an uncommitted transaction rolls it back.
+- `async` and `.await` allow other work to run during pipe I/O. `spawn_blocking` moves synchronous SQLite work to a thread that can wait on disk.
+
+## Constraints for following milestones
+
+| Risk | Decision to carry forward |
+| --- | --- |
+| Worker startup cost becomes material during ML workloads | Revisit worker reuse, cancellation and request multiplexing when a long-running operation exists. Preserve correlation and version checks. |
+| A model workload consumes memory or introduces untrusted code | Keep tensors, media and weights on disk. Send references and small metadata over IPC. Model import requires an explicit isolation design. Python's isolated interpreter flags here only control its startup environment. |
+| Persistence formats become coupled | Version worker IPC, the SQLite schema and model documents independently. Use versioned, framework-independent YAML and a separate typed graph IR for the future compiler. Keep architecture, weights and run metadata separate. |
+| Experiment ingestion blocks interaction | Keep streaming TensorBoard ingestion, bounded caches and disk-backed aggregation behind services when tracking is introduced. |
+| Desktop resource paths or Python installations vary | Resolve packaged files through Tauri, and support an explicit interpreter path. Exercise the bundled resource path in desktop smoke checks. |
+
+The next milestone is a standalone Python package for the versioned YAML document, migration rules, validator and canonical IR, with small compatibility fixtures. The desktop, worker and database can continue to build independently of that package.
