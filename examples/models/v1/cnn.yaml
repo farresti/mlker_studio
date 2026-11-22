@@ -1,0 +1,49 @@
+format: mlker.model
+schema_version: 1
+model:
+  id: small_cnn
+  revision: r1
+  name: Small image classifier
+  entry: main
+  inputs: [image]
+  outputs: [scores]
+graphs:
+  - id: main
+    inputs: [{id: image, tensor: {dtype: float32, shape: [B, 1, 8, 8], layout: NCHW}}]
+    outputs: [{id: scores, tensor: {dtype: float32, shape: [B, 5]}}]
+    nodes:
+      - id: conv
+        kind: module
+        registry: core.Conv2d
+        params: {in_channels: 1, out_channels: 4, kernel_size: 3, padding: 1}
+        inputs: [{id: x, tensor: {shape: [B, 1, 8, 8]}}]
+        outputs: [{id: out, tensor: {shape: [B, 4, 8, 8]}}]
+      - id: relu
+        kind: operator
+        registry: core.ReLU
+        inputs: [{id: x, tensor: {shape: [B, 4, 8, 8]}}]
+        outputs: [{id: out, tensor: {shape: [B, 4, 8, 8]}}]
+      - id: pool
+        kind: operator
+        registry: core.MaxPool2d
+        params: {kernel_size: 2, stride: 2}
+        inputs: [{id: x, tensor: {shape: [B, 4, 8, 8]}}]
+        outputs: [{id: out, tensor: {shape: [B, 4, 4, 4]}}]
+      - id: flatten
+        kind: operator
+        registry: core.Flatten
+        inputs: [{id: x, tensor: {shape: [B, 4, 4, 4]}}]
+        outputs: [{id: out, tensor: {shape: [B, 64]}}]
+      - id: classifier
+        kind: module
+        registry: core.Linear
+        params: {in_features: 64, out_features: 5}
+        inputs: [{id: x, tensor: {shape: [B, 64]}}]
+        outputs: [{id: out, tensor: {shape: [B, 5]}}]
+    edges:
+      - {from: {input: image}, to: {node: conv, port: x}}
+      - {from: {node: conv, port: out}, to: {node: relu, port: x}}
+      - {from: {node: relu, port: out}, to: {node: pool, port: x}}
+      - {from: {node: pool, port: out}, to: {node: flatten, port: x}}
+      - {from: {node: flatten, port: out}, to: {node: classifier, port: x}}
+      - {from: {node: classifier, port: out}, to: {output: scores}}

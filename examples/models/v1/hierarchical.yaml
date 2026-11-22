@@ -1,0 +1,51 @@
+format: mlker.model
+schema_version: 1
+model:
+  id: two_heads
+  revision: r1
+  name: Two projection heads
+  entry: main
+  inputs: [features]
+  outputs: [compact, expanded]
+extensions:
+  studio.example: {category: hierarchy}
+blocks: [{id: projection, graph: head}]
+graphs:
+  - id: main
+    inputs: [{id: features, tensor: {dtype: float32, shape: [B, 8]}}]
+    outputs:
+      - {id: compact, tensor: {shape: [B, 2]}}
+      - {id: expanded, tensor: {shape: [B, 16]}}
+    parameters: [{id: wide_features, type: int, default: 16}]
+    nodes:
+      - id: small
+        kind: block
+        block: projection
+        inputs: [{id: x, tensor: {shape: [B, 8]}}]
+        outputs: [{id: y, tensor: {shape: [B, 2]}}]
+        params: {width: 2}
+      - id: large
+        kind: block
+        block: projection
+        inputs: [{id: x, tensor: {shape: [B, 8]}}]
+        outputs: [{id: y, tensor: {shape: [B, 16]}}]
+        params: {width: {$param: wide_features}}
+    edges:
+      - {from: {input: features}, to: {node: small, port: x}}
+      - {from: {input: features}, to: {node: large, port: x}}
+      - {from: {node: small, port: y}, to: {output: compact}}
+      - {from: {node: large, port: y}, to: {output: expanded}}
+  - id: head
+    inputs: [{id: x, tensor: {dtype: float32, shape: [B, 8]}}]
+    outputs: [{id: y, tensor: {dtype: float32, shape: [B, null]}}]
+    parameters: [{id: width, type: int, default: 4}]
+    nodes:
+      - id: project
+        kind: module
+        registry: core.Linear
+        params: {in_features: 8, out_features: {$param: width}}
+        inputs: [{id: x, tensor: {shape: [B, 8]}}]
+        outputs: [{id: out, tensor: {shape: [B, null]}}]
+    edges:
+      - {from: {input: x}, to: {node: project, port: x}}
+      - {from: {node: project, port: out}, to: {output: y}}

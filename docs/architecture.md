@@ -13,6 +13,8 @@ Milestone 0 establishes one working path through the desktop stack. Opening Home
 | `src-tauri/src/worker.rs` | Child lifetime, protocol validation and timeout |
 | `src-tauri/tests/` | Service integration tests with real processes and files |
 | `python/mlker_worker/`, `python/tests/` | Python entry point and independent wire tests |
+| `python/mlker_graph/`, `python/pyproject.toml` | Standalone graph package, v1 schema, validator and typed IR |
+| `examples/models/v1/` | Valid architecture documents and invalid diagnostic fixtures |
 | `docs/decisions/` | Reasons for the process and persistence boundaries |
 
 ## Status request
@@ -57,4 +59,13 @@ The Python service runs an interpreter executable with fixed arguments and the w
 | Experiment ingestion blocks interaction | Keep streaming TensorBoard ingestion, bounded caches and disk-backed aggregation behind services when tracking is introduced. |
 | Desktop resource paths or Python installations vary | Resolve packaged files through Tauri, and support an explicit interpreter path. Exercise the bundled resource path in desktop smoke checks. |
 
-The next milestone is a standalone Python package for the versioned YAML document, migration rules, validator and canonical IR, with small compatibility fixtures. The desktop, worker and database can continue to build independently of that package.
+## Model graph foundation
+
+Milestone 1 adds a sibling Python package, `mlker_graph`. Its API and validation CLI run independently of the desktop process. The worker still ships with just its standard-library dependencies.
+
+1. `load_model` parses restricted YAML into a `ModelDocument` containing the source path and complete data tree.
+2. The validator dispatches on format and version, applies the bundled v1 schema, indexes scoped IDs and checks graph boundaries. It orders block definitions by dependency and resolves registry targets, parameter contracts and wiring.
+3. `build_ir` publishes a typed model only after the checks pass. Edges reference resolved port objects. Block instances retain their stable target and bindings. Source locations link compiler diagnostics back to the document.
+4. `save_model` serializes the validated document, including unfamiliar source fields. The IR can be discarded and rebuilt after an edit.
+
+The [model format](model-format-v1.md) and [graph architecture decision](decisions/0003-model-graph.md) define the contract for a future editor and compiler. The next milestone can use the same documents for visual graph editing and basic PyTorch source generation.

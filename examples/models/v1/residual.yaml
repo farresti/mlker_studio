@@ -1,0 +1,23 @@
+format: mlker.model
+schema_version: 1
+model: {id: residual_relu, revision: r1, name: Residual activation, entry: main, inputs: [features], outputs: [sum]}
+graphs:
+  - id: main
+    inputs: [{id: features, tensor: {dtype: float32, shape: [B, F]}}]
+    outputs: [{id: sum, tensor: {dtype: float32, shape: [B, F]}}]
+    nodes:
+      - id: relu
+        kind: operator
+        registry: core.ReLU
+        inputs: [{id: x, tensor: {dtype: float32}}]
+        outputs: [{id: out, tensor: {dtype: float32}}]
+      - id: add
+        kind: operator
+        registry: core.Add
+        inputs: [{id: a, tensor: {dtype: float32}}, {id: b, tensor: {dtype: float32}}]
+        outputs: [{id: out, tensor: {dtype: float32}}]
+    edges:
+      - {from: {input: features}, to: {node: relu, port: x}}
+      - {from: {node: relu, port: out}, to: {node: add, port: a}}
+      - {from: {input: features}, to: {node: add, port: b}}
+      - {from: {node: add, port: out}, to: {output: sum}}

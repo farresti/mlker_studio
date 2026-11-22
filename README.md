@@ -57,9 +57,34 @@ npm run desktop:build
 
 For a browser-only preview, use `npm run dev` and open the Vite URL. Service status requires the desktop bridge.
 
+## Validate a model
+
+Milestone 1 adds a standalone Python graph package. From the repository root, use Python 3.10 or later with venv support. On Ubuntu the venv module is available in `python3-venv`.
+
+```bash
+python3 -m venv .venv
+. .venv/bin/activate
+python -m pip install -e ./python
+python -m mlker_graph examples/models/v1/hierarchical.yaml
+```
+
+The CLI prints a JSON array of diagnostics. An empty array means validation passed. Errors produce exit code 1 and warnings permit exit code 0. Try `examples/models/v1/invalid/cycle.yaml` for a graph-cycle diagnostic. With PyYAML and jsonschema already installed, the source-tree command is `PYTHONPATH=python python3 -m mlker_graph examples/models/v1/cnn.yaml`.
+
+```python
+from mlker_graph import build_ir, load_model, save_model, validate_model
+
+document = load_model("examples/models/v1/hierarchical.yaml")
+diagnostics = validate_model(document)
+model = build_ir(document)  # Raises ModelError on errors.
+print(model.entry.nodes["large"].parameters["width"].value)  # 16
+save_model(document, "two-heads.yaml")
+```
+
+The [format specification](docs/model-format-v1.md) describes the YAML fields, parameter lookup, hierarchy and round-trip guarantees.
+
 ## Checks
 
-Run these commands from the repository root after setup.
+Run these commands from the repository root after desktop and graph package setup.
 
 ```bash
 npm run typecheck

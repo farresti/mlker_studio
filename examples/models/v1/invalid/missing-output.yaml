@@ -1,0 +1,9 @@
+format: mlker.model
+schema_version: 1
+model: {id: incomplete, revision: r1, name: Unbound output, entry: main, inputs: [], outputs: [scores]}
+graphs:
+  - id: main
+    inputs: []
+    outputs: [{id: scores, tensor: {shape: [B, 3]}}]
+    nodes: []
+    edges: []

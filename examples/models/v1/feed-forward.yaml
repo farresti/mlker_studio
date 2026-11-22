@@ -1,0 +1,35 @@
+format: mlker.model
+schema_version: 1
+model:
+  id: feed_forward
+  revision: r1
+  name: Feed-forward classifier
+  description: Project eight features into three class scores.
+  entry: main
+  inputs: [features]
+  outputs: [scores]
+  metadata: {task: classification}
+graphs:
+  - id: main
+    inputs:
+      - {id: features, tensor: {dtype: float32, shape: [B, 8]}}
+    outputs:
+      - {id: scores, tensor: {dtype: float32, shape: [B, 3]}}
+    parameters:
+      - {id: classes, type: int, default: 3}
+    nodes:
+      - id: dense
+        kind: module
+        registry: core.Linear
+        inputs: [{id: x, tensor: {dtype: float32, shape: [B, 8]}}]
+        outputs: [{id: out, tensor: {dtype: float32, shape: [B, 3]}}]
+        params: {in_features: 8, out_features: {$param: classes}}
+      - id: activation
+        kind: operator
+        registry: core.ReLU
+        inputs: [{id: x, tensor: {dtype: float32, shape: [B, 3]}}]
+        outputs: [{id: out, tensor: {dtype: float32, shape: [B, 3]}}]
+    edges:
+      - {from: {input: features}, to: {node: dense, port: x}}
+      - {from: {node: dense, port: out}, to: {node: activation, port: x}}
+      - {from: {node: activation, port: out}, to: {output: scores}}

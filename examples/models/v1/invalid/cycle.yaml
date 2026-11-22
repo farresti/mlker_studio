@@ -1,0 +1,16 @@
+format: mlker.model
+schema_version: 1
+model: {id: cyclic, revision: r1, name: Cyclic flow, entry: main, inputs: [], outputs: [y]}
+graphs:
+  - id: main
+    inputs: []
+    outputs: [{id: y, tensor: {}}]
+    nodes:
+      - id: loop
+        kind: operator
+        registry: core.ReLU
+        inputs: [{id: x, tensor: {}}]
+        outputs: [{id: out, tensor: {}}]
+    edges:
+      - {from: {node: loop, port: out}, to: {node: loop, port: x}}
+      - {from: {node: loop, port: out}, to: {output: y}}
