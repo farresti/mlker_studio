@@ -4,7 +4,7 @@ import json
 
 from .plan import Call, ClassPlan
 
-COMPILER_VERSION = "0.2.0"
+COMPILER_VERSION = "0.3.0"
 TORCH_REQUIREMENT = "torch>=2.0,<3"
 
 
@@ -42,10 +42,18 @@ def render_class(plan: ClassPlan):
     return "\n".join(lines) + "\n"
 
 
-def module_source(plans, imports=()):
+def module_source(plans, extensions, imports=()):
     header = "import torch\nfrom torch import nn\n"
     if any(call.function.startswith("F.") for plan in plans for call in plan.calls):
         header += "from torch.nn import functional as F\n"
+    used = {layer.constructor for plan in plans for layer in plan.layers}
+    used.update(call.function for plan in plans for call in plan.calls)
+    for alias, extension in extensions.values():
+        if alias in used:
+            r = extension.record
+            message = f"Cannot load {r['id']} ({r['package']}.{r['symbol']}). Install its declared dependencies: {r['dependencies']}"
+            header += (f"\ntry:\n    from {r['package']} import {r['symbol']} as {alias}\n"
+                       f"except ImportError as error:\n    raise ImportError({message!r}) from error\n")
     if imports:
         names = ", ".join(imports)
         header += f"\nif __package__:\n    from .blocks import {names}\nelse:\n    from blocks import {names}\n"
@@ -68,6 +76,10 @@ def render_project(model, lowering, entry, inferred, schema_version):
         "classes": [{"class": plan.name, "graph": graph_id, "parameters": dict(params)}
                     for (graph_id, params), plan in lowering.classes.items()],
     }
+    extensions = lowering.extensions
+    dependencies = sorted({dep for _, ex in extensions.values() for dep in ex.record["dependencies"]})
+    config["python_extensions"] = [{**ex.identity, "dependencies": ex.record["dependencies"]}
+                                   for _, ex in extensions.values()]
     invocation = ", ".join(entry.inputs.values())
     readme = f"""# Generated PyTorch model
 
@@ -96,11 +108,14 @@ Use `model.train()` for training and call `loss.backward()` on a scalar loss.
 Parameters use PyTorch's initialization defaults. Use `load_state_dict` to load
 compatible trained weights. Configuration records the exported specialization.
 """
+    if extensions:
+        readme += "\nInstall the reviewed extension packages listed in config.json in this environment before importing Model. Their implementations execute in this Python process.\n"
+        readme = readme.replace("--index-url https://download.pytorch.org/whl/cpu ", "")
     files = {
-        "model.py": module_source([entry], imports), "__init__.py": "from .model import Model\n",
+        "model.py": module_source([entry], extensions, imports), "__init__.py": "from .model import Model\n",
         "config.json": json.dumps(config, indent=2, ensure_ascii=False) + "\n",
-        "requirements.txt": TORCH_REQUIREMENT + "\n", "README.md": readme,
+        "requirements.txt": "\n".join([TORCH_REQUIREMENT, *dependencies]) + "\n", "README.md": readme,
     }
     if blocks:
-        files["blocks.py"] = module_source(blocks)
+        files["blocks.py"] = module_source(blocks, extensions)
     return files

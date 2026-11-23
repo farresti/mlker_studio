@@ -86,3 +86,9 @@
 .auto-layout { position: absolute; top: 12px; left: 12px; z-index: 5; }
 .react-flow__edge.selected .react-flow__edgeupdater,
 .react-flow__edgeupdater:hover { fill: var(--green); fill-opacity: 0.55; cursor: grab; }
+.graph-crumbs { margin: 8px 0; }
+.graph-crumbs button[aria-current="page"] { color: var(--green); }
+.graph-tile[data-category="block"] .tile-heading { border-left: 3px solid #b49ad9; }
+.graph-tile[data-category="python"] .tile-heading { border-left: 3px solid #dfbd80; }
+
+.block-choice { display: block; }

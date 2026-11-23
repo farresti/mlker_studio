@@ -1,0 +1,16 @@
+[
+  {
+    "id": "example.scale",
+    "name": "Scale",
+    "description": "Multiply each tensor element by a scalar.",
+    "version": "1.0",
+    "kind": "module",
+    "package": "mlker_example_layers",
+    "symbol": "Scale",
+    "inputs": [{"id": "x", "tensor": {"dtype": "float32"}}],
+    "outputs": [{"id": "out", "tensor": {"dtype": "float32"}}],
+    "parameters": [{"id": "factor", "type": "float", "default": 2.0}],
+    "dependencies": ["torch"],
+    "example_inputs": {"x": {"dtype": "float32", "shape": [2, 3]}}
+  }
+]

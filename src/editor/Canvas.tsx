@@ -42,8 +42,9 @@ const GraphTile = memo(function GraphTile({ data, selected }: NodeProps<Tile>) {
 });
 const nodeTypes = { tile: GraphTile };
 
-export function Canvas({ graph, selection, select, onMove, onWire, onLayout, onDropOp, issues, focus, error }: {
-  graph: Graph; selection: string | null; select: (id: string | null) => void; onMove: (id: string, pos: Point) => void;
+export function Canvas({ group, toggleGroup, openBlock, graph, selection, select, onMove, onWire, onLayout, onDropOp, issues, focus, error }: {
+  group?: string[] | null; toggleGroup?: (id: string) => void;
+  openBlock?: (key: string) => void; graph: Graph; selection: string | null; select: (id: string | null) => void; onMove: (id: string, pos: Point) => void;
   onWire: (w: Wire, replacing?: string) => void; onLayout: (tiles: LayoutTile[]) => void; onDropOp: (id: string, pos: Point) => void; issues: Set<string>;
   focus: { key: string; count: number } | null; error: (message: string) => void;
 }) {
@@ -57,9 +58,9 @@ export function Canvas({ graph, selection, select, onMove, onWire, onLayout, onD
   const focused = useRef<typeof focus>(null);
   const base = useMemo(() => project(graph), [graph]);
   const nodes = useMemo(() => base.map(n => {
-    return { ...n, selected: n.id === selection, position: live[n.id] ?? n.position,
+    return { ...n, selected: group ? n.id.startsWith('node:') && group.includes(n.id.slice(5)) : n.id === selection, position: live[n.id] ?? n.position,
       measured: measured[n.id], data: { ...n.data, issue: issues.has(n.id) } };
-  }), [base, live, measured, selection, issues]);
+  }), [base, live, measured, selection, issues, group]);
   const edges = useMemo(() => Array.from(new Map(graph.edges.map(w => [edgeKey(w), w])).values(),
     w => ({ ...flowEdge(w), selected: edgeKey(w) === selection })), [graph.edges, selection]);
   useEffect(() => {
@@ -76,7 +77,8 @@ export function Canvas({ graph, selection, select, onMove, onWire, onLayout, onD
     <ReactFlow<Tile> nodes={nodes} edges={edges} nodeTypes={nodeTypes} colorMode="dark" minZoom={0.12} maxZoom={2}
       fitView={fitOnMount} fitViewOptions={{ padding: 0.2, maxZoom: 1 }}
       deleteKeyCode={null} multiSelectionKeyCode={null} selectionKeyCode={null} selectNodesOnDrag={false}
-      onNodeClick={(_, n) => select(n.id)} onEdgeClick={(_, e) => select(e.id)} onPaneClick={() => select(null)}
+      onNodeDoubleClick={(_, n) => { if (!group) openBlock?.(n.id); }}
+      onNodeClick={(_, n) => { if (!group) select(n.id); else if (n.id.startsWith('node:')) toggleGroup?.(n.id.slice(5)); }} onEdgeClick={(_, e) => select(e.id)} onPaneClick={() => select(null)}
       onEdgesChange={changes => { for (const change of changes) {
         if (change.type === 'select' && change.selected) select(change.id);
       } }}
@@ -90,7 +92,7 @@ export function Canvas({ graph, selection, select, onMove, onWire, onLayout, onD
           if (c.dragging) setLive(old => ({ ...old, [c.id]: c.position! }));
           else { onMove(c.id, c.position); setLive({}); }
         }
-        if (c.type === 'select' && c.selected) select(c.id);
+        if (c.type === 'select' && c.selected && !group) select(c.id);
       } }}
       isValidConnection={c => { const w = wire(c as Connection); return !!w && !connectionError(graph, w, reconnecting.current); }}
       onReconnectStart={(_, edge) => { reconnecting.current = edge.id; }}

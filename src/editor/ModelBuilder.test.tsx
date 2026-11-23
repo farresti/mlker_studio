@@ -5,9 +5,10 @@ import { createRoot } from 'react-dom/client';
 import { afterEach, expect, it, vi } from 'vitest';
 import { ModelBuilder } from './ModelBuilder';
 import { editor } from './api';
-import type { Document } from './model';
+import { newModel, type Graph, type Document } from './model';
 
-vi.mock('./Canvas', () => ({ Canvas: () => <div aria-label="Graph canvas" /> }));
+vi.mock('./Canvas', () => ({ Canvas: ({graph,openBlock}: {graph: Graph; openBlock:(key:string)=>void}) =>
+  <div aria-label="Graph canvas">{graph.nodes.map(n => <button key={n.id} onDoubleClick={() => openBlock('node:'+n.id)}>{n.id}</button>)}</div> }));
 vi.mock('./api', async (importOriginal) => {
   const original = await importOriginal<typeof import('./api')>();
   return { ...original, editor: {
@@ -108,4 +109,53 @@ it('coalesces validation and discards a stale response', async () => {
     container.remove();
     vi.useRealTimers();
   }
+});
+
+it('navigates nested definitions by double-click and returns via breadcrumbs without editing', async () => {
+  const doc = newModel();
+  const graph = (id:string, child?:string): Graph => ({id,inputs:[],outputs:[],edges:[],
+    nodes:child ? [{id:'call_'+child,kind:'block',block:child,inputs:[],outputs:[]}] : []});
+  doc.graphs = [graph('main','outer'),graph('outer','inner'),graph('inner')];
+  doc.blocks = ['inner','outer'].map(id => ({id,graph:id}));
+  vi.mocked(editor.load).mockResolvedValue({document:doc});
+  vi.mocked(editor.openPath).mockResolvedValue('/tmp/nested.yaml');
+  vi.mocked(editor.registry).mockResolvedValue([]);
+  const container = document.createElement('div'), root = createRoot(container);
+  try {
+    await act(async () => root.render(<ModelBuilder active />));
+    const button = (name:string) => [...container.querySelectorAll('button')].find(b => b.textContent === name)!;
+    await act(async () => button('Open').click());
+    for (const id of ['outer','inner']) {
+      await act(async () => button('call_'+id).dispatchEvent(new MouseEvent('dblclick',{bubbles:true})));
+    }
+    expect(container.querySelector('[aria-current=page]')?.textContent).toBe('Definition / inner');
+    await act(async () => button('Definition / outer').click());
+    expect(button('call_inner')).toBeDefined();
+    await act(async () => button('Model / main').click());
+    expect(button('call_outer')).toBeDefined();
+    expect(button('Undo').disabled).toBe(true);
+  } finally { await act(async () => root.unmount()); }
+});
+
+it('adds a trusted Python node and saves its typed override and registration identity', async () => {
+  const impl = {id:'example.scale',package:'mlker_example_layers',symbol:'Scale',version:'1.0'};
+  const contracts = {inputs:[{id:'x',tensor:{dtype:'float32'}}],outputs:[{id:'out',tensor:{}}]};
+  vi.mocked(editor.registry).mockResolvedValue([{id:impl.id,name:'Scale',description:'Scale a tensor',kind:'python',
+    implementation:impl,contracts,inputs:['x'],outputs:['out'],
+    params:{factor:{type:'float',default:2,initial:2,minimum:null,maximum:null}}}]);
+  vi.mocked(editor.savePath).mockResolvedValue('/tmp/scale.yaml');
+  const container = document.createElement('div'), root = createRoot(container);
+  try {
+    await act(async () => root.render(<ModelBuilder active />));
+    await act(async () => container.querySelector<HTMLButtonElement>('[aria-label="Add Scale"]')!.click());
+    expect(container.querySelector('fieldset select')?.closest('fieldset')?.textContent).toContain('Python implementation');
+    const field = [...container.querySelectorAll('label')].find(label => label.textContent === 'factor')!.querySelector('input')!;
+    await act(async () => {
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value')!.set!.call(field,'3.5');
+      field.dispatchEvent(new Event('input',{bubbles:true}));
+    });
+    await act(async () => [...container.querySelectorAll('button')].find(b => b.textContent === 'Save')!.click());
+    const saved = vi.mocked(editor.save).mock.calls.at(-1)![0];
+    expect(saved.graphs[0].nodes[0]).toMatchObject({kind:'python',implementation:impl,...contracts,params:{factor:3.5}});
+  } finally { await act(async () => root.unmount()); }
 });

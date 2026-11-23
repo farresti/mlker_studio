@@ -1,7 +1,10 @@
 """Canonical declarations and resolved handles for a validated model revision."""
 
 from dataclasses import dataclass, field
-from typing import Any, Literal
+from typing import Any, Literal, TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from .extensions import Extension
 
 from .diagnostics import Location
 from .registry import Operation, ParameterType, ParameterValue
@@ -73,7 +76,7 @@ class OpaqueRef:
 class Node:
     id: str
     kind: Literal["operator", "module", "block", "python", "opaque"]
-    target: Operation | BlockRef | PythonRef | OpaqueRef
+    target: "Operation | BlockRef | PythonRef | OpaqueRef | Extension"
     inputs: dict[str, Port]
     outputs: dict[str, Port]
     parameters: dict[str, Binding]

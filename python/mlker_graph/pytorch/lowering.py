@@ -3,6 +3,7 @@
 from graphlib import TopologicalSorter
 
 from .. import ir
+from ..extensions import Extension
 from ..registry import Operation
 from .plan import Call, ClassPlan, Layer, Names, fail
 from .shapes import ShapeError, infer, merge
@@ -85,6 +86,7 @@ class Lowering:
         self.names = Names()
         self.classes = {}
         self.cache = {}
+        self.extensions = {}
 
     def graph(self, graph, config, input_shapes, entry=False):
         # Names and code depend on graph/config. Shape checks also depend on the call site's inputs.
@@ -117,6 +119,8 @@ class Lowering:
             if isinstance(target, ir.BlockRef):
                 child = self.model.graphs[target.graph_id]
                 input_ids, output_ids = tuple(child.inputs), tuple(child.outputs)
+            elif isinstance(target, Extension):
+                input_ids, output_ids = ([p["id"] for p in target.record[k]] for k in ("inputs", "outputs"))
             elif isinstance(target, Operation) and (target.id in MODULES or target.id in FUNCTIONS):
                 input_ids, output_ids = target.inputs, target.outputs
             else:
@@ -134,6 +138,16 @@ class Lowering:
                 child_plan, result_shapes = self.graph(child, params, dict(zip(input_ids, shapes)))
                 function = instances.layer(node, child_plan.name, {})
                 keywords = {}
+            elif isinstance(target, Extension):
+                registration = target.record["id"]
+                if registration not in self.extensions:
+                    self.extensions[registration] = (self.names.allocate("Extension_", registration), target)
+                alias, _ = self.extensions[registration]
+                result_shapes = [node.outputs[k].effective_tensor.shape for k in output_ids]
+                if target.record["kind"] == "module":
+                    function, keywords = instances.layer(node, alias, params), {}
+                else:
+                    function, keywords = alias, params
             else:
                 try:
                     result_shapes = [infer(target, shapes, params)]

@@ -7,6 +7,7 @@ from graphlib import CycleError, TopologicalSorter
 from . import ir
 from .contracts import GraphDefinition, check_operation, check_ports, resolve_parameters
 from .diagnostics import Diagnostic, Location, ModelError
+from .extensions import Extension, read_registry
 from .document import ModelDocument
 from .registry import REGISTRY, Argument, Rule, literal
 from .schema import schema_diagnostics
@@ -77,7 +78,7 @@ def graph_order(definitions, blocks, issues):
         return ()
 
 
-def compile_graph(definition, blocks, definitions, issues, version):
+def compile_graph(definition, blocks, definitions, issues, version, extensions):
     raw, at = definition.raw, definition.location
     interfaces = {None: definition.ports}
     nodes = {}
@@ -103,6 +104,15 @@ def compile_graph(definition, blocks, definitions, issues, version):
         elif kind == "python":
             impl = item["implementation"]
             target = ir.PythonRef(impl["package"], impl["symbol"], impl.get("version"))
+            if "id" in impl:
+                extension = extensions.get(impl["id"]) if isinstance(impl["id"], str) else None
+                if not extension or any(impl.get(k) != v for k, v in extension.identity.items()):
+                    issues.append(Diagnostic("extension_trust", "error",
+                        f"No matching trusted registration for {impl['id']}. Review MLKER_TRUSTED_REGISTRY.", loc))
+                else:
+                    target = extension
+                    signature = extension.parameters
+                    check_ports(ports, read_ports(extension.record, loc, issues), loc, issues)
         else:
             target = ir.OpaqueRef(item["source_op"])
             issues.append(Diagnostic("opaque_node", "warning", "Only the declared opaque ports can be checked.", loc))
@@ -110,7 +120,8 @@ def compile_graph(definition, blocks, definitions, issues, version):
         has_identity = "instance_id" in item or "parameter_ids" in item
         if has_identity and version == 1:
             issues.append(Diagnostic("sharing_version", "error", "Explicit sharing requires schema version 2.", loc))
-        if "instance_id" in item and kind not in ("module", "block"):
+        is_module = kind in ("module", "block") or (isinstance(target, Extension) and target.record["kind"] == "module")
+        if "instance_id" in item and not is_module:
             issues.append(Diagnostic("sharing_kind", "error", "Only modules and blocks have instance identity.", loc))
         if "parameter_ids" in item and kind != "module":
             issues.append(Diagnostic("sharing_kind", "error", "Only module nodes expose parameter slots.", loc))
@@ -161,7 +172,13 @@ def analyze(document: ModelDocument) -> tuple[list[Diagnostic], ir.Model | None]
     order = graph_order(definitions, blocks, issues)
     if issues:
         return issues, None
-    graphs = {key: compile_graph(definitions[key], blocks, definitions, issues, data["schema_version"]) for key in order}
+    extensions = {}
+    if any(n["kind"] == "python" and "id" in n["implementation"] for g in data["graphs"] for n in g["nodes"]):
+        try:
+            extensions = read_registry()
+        except ModelError as error:
+            return error.diagnostics, None
+    graphs = {key: compile_graph(definitions[key], blocks, definitions, issues, data["schema_version"], extensions) for key in order}
     if any(problem.severity == "error" for problem in issues):
         return issues, None
     result = ir.Model(model["id"], model["revision"], model["name"], model.get("description", ""),

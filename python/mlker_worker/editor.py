@@ -48,6 +48,14 @@ def registry():
         entries.append({"id": op.id, "name": name, "kind": op.kind, "inputs": op.inputs,
                         "outputs": op.outputs, "params": params,
                         "description": DESCRIPTIONS.get(name, f"Apply the {name} activation elementwise.")})
+    from mlker_graph.extensions import read_registry
+    for extension in read_registry().values():
+        r = extension.record
+        entries.append({**{k: r[k] for k in ("id", "name", "description")}, "kind": "python",
+                        "implementation": extension.identity, "contracts": {k: r[k] for k in ("inputs", "outputs")},
+                        "inputs": [p["id"] for p in r["inputs"]], "outputs": [p["id"] for p in r["outputs"]],
+                        "params": {k: {**asdict(a.rule), "default": a.default, "initial": a.default}
+                                   for k, a in extension.parameters.items()}})
     return {"version": 1, "operations": entries}
 
 
@@ -67,7 +75,8 @@ def check_editable(document):
     issues = schema_diagnostics(document)
     if not issues:
         # These defects prevent unique canvas identities or entry-graph selection.
-        issues = [d for d in validate_model(document) if d.code in ("duplicate_id", "unknown_graph")]
+        issues = [d for d in validate_model(document) if d.code == "duplicate_id"
+                  or (d.code == "unknown_graph" and d.location.path == "/model/entry")]
     if issues:
         raise EditorError("invalid_document", "Cannot display this document.", issues)
 
@@ -121,6 +130,8 @@ def operation(method, params):
             return {"path": str(folder), "sources": sources}
         raise EditorError("unknown_method", f"Unknown editor method {method}.")
     except ModelError as exc:
+        if exc.diagnostics and exc.diagnostics[0].code == "extension_registry":
+            raise EditorError("extension_registry", exc.diagnostics[0].message, exc.diagnostics) from exc
         code = "compile_error" if isinstance(exc, CompileError) else "invalid_document"
         raise EditorError(code, "Compilation failed." if code == "compile_error" else "Model validation failed.",
                           exc.diagnostics) from exc

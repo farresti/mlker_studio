@@ -51,3 +51,5 @@ Rust starts the same worker with `--editor` and keeps its stdin and stdout open 
 | `compile` | `document`, absolute output directory `path`, optional `source` | Export `path` and `sources` keyed by generated Python filename |
 
 Registry, load, save, validation and source generation use the graph package dependencies. Running generated models is a separate operation.
+
+Registered Python entries use kind `python`. Their `implementation` object identifies the trusted registration and `contracts` contains the ordered input/output port records. The worker reads the manifest selected at launch by `MLKER_TRUSTED_REGISTRY`. A registration or access failure returns structured diagnostics.

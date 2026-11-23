@@ -121,7 +121,7 @@ Install the graph dependencies in the Python environment used by the desktop. If
 4. Drag either end of an edge to reconnect it. **Auto layout** arranges the graph left to right and fits it in view. Both edits support **Undo**.
 5. Select **Compile** and choose an empty directory or a previous MLKer export directory. Recompiling replaces generated source files and preserves checkpoints. **Inspect generated source** opens the generated Python. To execute it, use the PyTorch example above with the generated directory on your import path.
 
-Model Builder edits the entry graph. Reusable block definitions are preserved and their implementation details are read-only in this milestone. Ctrl+S saves, Ctrl+Shift+S saves as, and Ctrl+Z or Ctrl+Shift+Z undo and redo canvas edits. Use Delete to remove the selected node, port, or connection. The editor can save schema-correct incomplete drafts.
+Model Builder supports reusable blocks, nested definition editing and registered Python nodes. The [hierarchy and extensions guide](docs/hierarchy-and-extensions.md) walks through building a reusable residual block and running the Scale example. Ctrl+S saves, Ctrl+Shift+S saves as, and Ctrl+Z or Ctrl+Shift+Z undo and redo canvas edits. Use Delete to remove the selected node, port, or connection. The editor can save schema-correct incomplete drafts.
 
 ## Checks
 

@@ -1,0 +1,17 @@
+format: mlker.model
+schema_version: 2
+model: {id: scaling, revision: r1, name: Scale features, entry: main, inputs: [x], outputs: [y]}
+graphs:
+  - id: main
+    inputs: [{id: x, tensor: {dtype: float32}}]
+    outputs: [{id: y, tensor: {dtype: float32}}]
+    nodes:
+      - id: scale
+        kind: python
+        implementation: {id: example.scale, package: mlker_example_layers, symbol: Scale, version: "1.0"}
+        inputs: [{id: x, tensor: {}}]
+        outputs: [{id: out, tensor: {}}]
+        params: {factor: 3.0}
+    edges:
+      - {from: {input: x}, to: {node: scale, port: x}}
+      - {from: {node: scale, port: out}, to: {output: y}}

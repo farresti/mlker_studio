@@ -72,6 +72,6 @@ The [model format](model-format-v1.md) and [graph architecture decision](decisio
 
 ## Visual Model Builder
 
-The editor in `src/editor/` projects the entry graph of a complete model document into an XYFlow canvas. Its model helpers update canonical endpoints, public port bindings and position extension data together. The Rust `EditorService` holds the persistent graph subprocess in a Tokio mutex, the asynchronous equivalent of a lock around the stdin/stdout exchange. Domain failures carry Python diagnostics through the Tauri invocation.
+The editor in `src/editor/` projects the currently selected graph of a complete model document into an XYFlow canvas. Its model helpers update canonical endpoints, public port bindings and position extension data together. The Rust `EditorService` holds the persistent graph subprocess in a Tokio mutex, the asynchronous equivalent of a lock around the stdin/stdout exchange. Domain failures carry Python diagnostics through the Tauri invocation.
 
 Debounced validation keeps one request running and at most the latest pending document. Registry metadata comes from the existing Python registry. Native dialogs select local input and destination paths. The worker runs the existing graph validator, YAML serializer and PyTorch compiler. See the [editor decision](decisions/0005-visual-editor.md) and [wire protocol](worker-protocol.md).
