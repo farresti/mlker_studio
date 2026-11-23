@@ -5,7 +5,7 @@ import { getCurrentWindow } from '@tauri-apps/api/window';
 import { backendError, editor } from './api';
 import { Canvas } from './Canvas';
 import { Inspector } from './Inspector';
-import { addBoundary, addNode, boundaryKey, connect, connectionError, current, edgeKey, history, move, newModel,
+import { addBoundary, addNode, autoLayout, boundaryKey, connect, connectionError, current, edgeKey, history, move, newModel,
   nodeKey, owner, removeItem, renameBoundary, type Diagnostic, type Document, type Graph, type Operation, type Point, type Wire } from './model';
 import { useValidation } from './useValidation';
 import './editor.css';
@@ -86,11 +86,16 @@ export function ModelBuilder({ active }: { active: boolean }) {
     let result: [Document, string];
     if (id === 'input' || id === 'output') result = addBoundary(doc, id, pos);
     else if (op) result = addNode(doc, op, pos); else return;
-    edit(result[0]); jump(result[1]);
+    edit(result[0]);
+    if (point) select(result[1]);
+    else jump(result[1]);
   }
-  function link(w: Wire) {
-    const problem = connectionError(g, w);
-    if (problem) setMessage(problem); else edit(connect(doc, w));
+  function link(w: Wire, replacing?: string) {
+    const problem = connectionError(g, w, replacing);
+    if (problem) setMessage(problem); else {
+      edit(connect(doc, w, replacing));
+      if (replacing && selected === replacing) select(edgeKey(w));
+    }
   }
   function remove(key: string) { edit(removeItem(doc, key)); if (selected === key) select(null); }
   function timeTravel(type: 'undo' | 'redo') {
@@ -167,8 +172,8 @@ export function ModelBuilder({ active }: { active: boolean }) {
         })}
         {!!registry.length && !offered.length && <p className="panel-note">No matching operations.</p>}
       </section>
-      <ReactFlowProvider><Canvas graph={g} selection={selection} select={select} focus={focus} reset={reset}
-        issues={flagged} error={setMessage} onDropOp={add} onWire={link} onMove={(id, pos) => edit(move(doc, id, pos))} /></ReactFlowProvider>
+      <ReactFlowProvider key={reset}><Canvas graph={g} selection={selection} select={select} focus={focus}
+        issues={flagged} error={setMessage} onDropOp={add} onWire={link} onLayout={tiles => edit(autoLayout(doc, tiles))} onMove={(id, pos) => edit(move(doc, id, pos))} /></ReactFlowProvider>
       <Inspector key={reset + '/' + selection} doc={doc} selection={selection} registry={registry} edit={edit} link={link}
         invalid={invalid} remove={remove} rename={id => { if (!selection) return;
           const [side, old] = selection.split(':') as ['input' | 'output', string];

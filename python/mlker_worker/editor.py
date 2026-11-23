@@ -1,6 +1,7 @@
 """Editor protocol v2 operations. Graph dependencies load only for editor requests."""
 
 from dataclasses import asdict
+import json
 from pathlib import Path
 
 
@@ -113,8 +114,10 @@ def operation(method, params):
             return {"path": str(path)}
         if method == "compile":
             folder = compile_model(document, selected_path(params))
+            config = json.loads((folder / "config.json").read_text(encoding="utf-8"))
+            names = ["model.py", "blocks.py"] if len(config["classes"]) > 1 else ["model.py"]
             sources = {name: (folder / name).read_text(encoding="utf-8")
-                       for name in ("model.py", "blocks.py") if (folder / name).is_file()}
+                       for name in names}
             return {"path": str(folder), "sources": sources}
         raise EditorError("unknown_method", f"Unknown editor method {method}.")
     except ModelError as exc:

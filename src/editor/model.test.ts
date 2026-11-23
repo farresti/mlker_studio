@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { flowEdge, project, wire } from './Canvas';
-import { addBoundary, addNode, connect, connectionError, current, edgeKey, history, move, newModel, parseParam,
+import { addBoundary, addNode, autoLayout, connect, connectionError, current, edgeKey, history, move, newModel, parseParam,
   parseShape, removeItem, renameBoundary, type Argument, type Operation, type Wire } from './model';
 import { backendError } from './api';
 
@@ -71,4 +71,35 @@ describe('properties and errors', () => {
     expect(backendError({ code: 'compile_error', message: 'Compilation failed.', diagnostics }))
       .toEqual({ message: 'Compilation failed.', diagnostics });
   });
+});
+
+it('reconnects either endpoint as one edit and keeps the original wire on invalid drops', () => {
+  const [twoInputs] = addBoundary(graph(), 'input', point);
+  const [doc] = addBoundary(twoInputs, 'output', point);
+  const original = { ...into, annotation: 'keep' };
+  const start = connect(connect(doc, original), out);
+  const changedSource = { ...into, from: { input: 'input_2' } };
+  const first = connect(start, changedSource, edgeKey(into));
+  expect(current(first).edges).toEqual([{ ...changedSource, annotation: 'keep' }, out]);
+  expect(connect(first, { ...changedSource, to: out.to }, edgeKey(changedSource))).toBe(first);
+  const changedTarget = { ...changedSource, to: { output: 'output_2' } };
+  const second = connect(first, changedTarget, edgeKey(changedSource));
+  expect(current(second).edges[0]).toEqual({ ...changedTarget, annotation: 'keep' });
+  const edited = history({ doc: first, past: [], future: [] }, { type: 'edit', doc: second });
+  expect(history(edited, { type: 'undo' }).doc).toBe(first);
+});
+
+it('auto layouts branches and disconnected nodes using measured bounds and preserves graph semantics', () => {
+  const [branched] = addNode(graph(), relu, point);
+  const [isolated] = addBoundary(branched, 'input', point);
+  const doc = connect(connect(connect(isolated, into), out), { ...into, to: { node: 'relu_2', port: 'x' } });
+  const tiles = project(current(doc)).map(n => ({ id: n.id, measured: { width: 320, height: 260 } }));
+  const arranged = autoLayout(doc, tiles);
+  const positions = new Map(project(current(arranged)).map(n => [n.id, n.position]));
+  expect(positions.get('node:relu')!.x).toBeGreaterThan(positions.get('input:input')!.x + 320);
+  expect(positions.get('output:output')!.x).toBeGreaterThan(positions.get('node:relu')!.x + 320);
+  expect(positions.get('node:relu_2')!.y).toBeGreaterThan(positions.get('node:relu')!.y + 260);
+  expect(positions.get('input:input_2')!.y).toBeGreaterThan(positions.get('input:input')!.y + 260);
+  expect(current(arranged).edges).toBe(current(doc).edges);
+  expect(autoLayout(arranged, tiles)).toBe(arranged);
 });

@@ -23,7 +23,7 @@ rustup toolchain install 1.100.0 --profile minimal --no-self-update
 export RUSTUP_TOOLCHAIN=1.100.0
 ```
 
-If Node.js and npm are missing, the following installs the verified x86-64 Node build in your user account. For another architecture, choose the matching Linux package. [Node.js downloads](https://nodejs.org/en/download)
+Check `node --version` in the terminal you will use to launch the app. If Node is missing or older than 22.12, the following installs the verified x86-64 Node build in your user account. For another architecture, choose the matching Linux package. [Node.js downloads](https://nodejs.org/en/download)
 
 ```bash
 node_dir="$HOME/.local/share/mlker-tools"
@@ -36,7 +36,13 @@ mkdir -p "$node_dir"
   grep '  node-v22.16.0-linux-x64.tar.xz$' SHASUMS256.txt | sha256sum -c -
   tar -xf node-v22.16.0-linux-x64.tar.xz
 )
-export PATH="$node_dir/node-v22.16.0-linux-x64/bin:$PATH"
+```
+
+If you installed that build, select it in each new terminal, including the IDE terminal, before running npm. Tauri starts Vite with the same `PATH`.
+
+```bash
+export PATH="$HOME/.local/share/mlker-tools/node-v22.16.0-linux-x64/bin:$PATH"
+node --version  # v22.16.0
 ```
 
 ## Run from the repository root
@@ -112,7 +118,8 @@ Install the graph dependencies in the Python environment used by the desktop. If
 1. Open **Model Builder** and add **Input**, **Conv2d**, **ReLU**, **MaxPool2d**, **Flatten**, **Linear**, and **Output**. Click a library result to add it or drag it onto the canvas.
 2. Connect each output handle to the next input handle, or choose the upstream port under **Properties → Connections**. The supplied parameter suggestions match the default `[B, 1, 8, 8]` input, with 36 features entering Linear and five output scores.
 3. Select **Validate**, then **Save**. Use **New** and **Open** to reopen the saved YAML. Click a diagnostic to focus its node or port.
-4. Select **Compile** and choose an empty export directory. **Inspect generated source** opens the generated Python. To execute it, use the PyTorch example above with the generated directory on your import path.
+4. Drag either end of an edge to reconnect it. **Auto layout** arranges the graph left to right and fits it in view. Both edits support **Undo**.
+5. Select **Compile** and choose an empty directory or a previous MLKer export directory. Recompiling replaces generated source files and preserves checkpoints. **Inspect generated source** opens the generated Python. To execute it, use the PyTorch example above with the generated directory on your import path.
 
 Model Builder edits the entry graph. Reusable block definitions are preserved and their implementation details are read-only in this milestone. Ctrl+S saves, Ctrl+Shift+S saves as, and Ctrl+Z or Ctrl+Shift+Z undo and redo canvas edits. Use Delete to remove the selected node, port, or connection. The editor can save schema-correct incomplete drafts.
 

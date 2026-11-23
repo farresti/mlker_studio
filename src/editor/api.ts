@@ -20,7 +20,7 @@ export const editor = {
     request<{ path: string; sources: Record<string, string> }>('compile', { document, path, source }),
   openPath: () => open({ filters, title: 'Open MLKer model' }),
   savePath: (defaultPath: string) => save({ filters, defaultPath, title: 'Save MLKer model' }),
-  exportPath: (modelPath: string | null) => open({ directory: true, title: 'Select an empty export directory',
+  exportPath: (modelPath: string | null) => open({ directory: true, title: 'Choose a new or existing model export directory',
     defaultPath: modelPath?.slice(0, modelPath.lastIndexOf('/') + 1), canCreateDirectories: true }),
   discard: () => ask('Discard unsaved changes to this model?', { title: 'Unsaved model', kind: 'warning' }),
 };

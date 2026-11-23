@@ -27,7 +27,7 @@ function display(value: Value | undefined) {
 
 export function Inspector({ doc, selection, registry, edit, link, remove, invalid, rename }: {
   doc: Document; selection: string | null; registry: Operation[]; edit: (doc: Document) => void;
-  link: (wire: Wire) => void; remove: (id: string) => void; invalid: Invalid; rename: (name: string) => void;
+  link: (wire: Wire, replacing?: string) => void; remove: (id: string) => void; invalid: Invalid; rename: (name: string) => void;
 }) {
   const g = current(doc);
   const node = g.nodes.find(n => nodeKey(n.id) === selection);
@@ -85,11 +85,10 @@ export function Inspector({ doc, selection, registry, edit, link, remove, invali
         return <label className="editor-field" key={portId(to)}>Source for {portId(to)}
           <select value={existing ? JSON.stringify(existing.from) : ''} onChange={e => {
             if (!e.target.value && existing) remove(edgeKey(existing));
-            else if (e.target.value) link({ from: JSON.parse(e.target.value), to });
+            else if (e.target.value) link({ from: JSON.parse(e.target.value), to }, existing && edgeKey(existing));
           }}>
             <option value="">Disconnected</option>
-            {sources.filter(s => owner(s) !== owner(to)).map(s => <option key={JSON.stringify(s)} value={JSON.stringify(s)}
-              disabled={!!existing && (owner(s) !== owner(existing.from) || portId(s) !== portId(existing.from))}>{labelEndpoint(s)}</option>)}
+            {sources.filter(s => owner(s) !== owner(to)).map(s => <option key={JSON.stringify(s)} value={JSON.stringify(s)}>{labelEndpoint(s)}</option>)}
           </select>
         </label>;
       })}</div>}

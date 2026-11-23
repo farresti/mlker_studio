@@ -62,9 +62,25 @@ class ExportTests(unittest.TestCase):
             self.assertEqual(config["revision"], "r1")
             self.assertEqual([p["inferred_shape"] for p in config["outputs"]], [["B", 2], ["B", 16]])
             (first / "model.py").write_text("original")
+            (first / "weights.pt").write_bytes(b"checkpoint")
+            compile_model(sample("v1/cnn"), first)
+            self.assertFalse((first / "blocks.py").exists())
+            self.assertIn(" -> torch.Tensor:", (first / "model.py").read_text())
+            self.assertEqual((first / "weights.pt").read_bytes(), b"checkpoint")
+            self.assertIn(" -> tuple[torch.Tensor, torch.Tensor]:", (second / "model.py").read_text())
+            self.assertIn(": torch.Tensor) -> torch.Tensor:", (second / "blocks.py").read_text())
+            (first / "blocks.py").write_text("unrelated")
             with self.assertRaises(FileExistsError):
                 compile_model(doc, first)
-            self.assertEqual((first / "model.py").read_text(), "original")
+            self.assertEqual((first / "blocks.py").read_text(), "unrelated")
+
+    def test_unrecognized_directory_is_preserved(self):
+        with TemporaryDirectory() as tmp:
+            original = Path(tmp) / "model.py"
+            original.write_text("user code")
+            with self.assertRaises(FileExistsError):
+                compile_model(sample("v1/cnn"), tmp)
+            self.assertEqual(original.read_text(), "user code")
 
     def test_shape_errors_have_source_location_and_create_no_files(self):
         cases = [

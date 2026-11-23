@@ -23,14 +23,18 @@ def expression(call: Call):
 
 
 def render_class(plan: ClassPlan):
-    lines = [f"class {plan.name}(nn.Module):", "    def __init__(self):", "        super().__init__()"]
+    lines = [f"class {plan.name}(nn.Module):", "    def __init__(self) -> None:", "        super().__init__()"]
     for layer in plan.layers:
         args = ", ".join(keywords(layer.parameters))
         lines.append(f"        self.{layer.name} = {layer.constructor}({args})")
     for target, owner in plan.ties:
         lines.append(f"        self.{target} = self.{owner}")
-    signature = ", ".join(["self", *plan.inputs.values()])
-    lines.extend(["", f"    def forward({signature}):"])
+    signature = ", ".join(["self", *(f"{name}: torch.Tensor" for name in plan.inputs.values())])
+    result = "torch.Tensor"
+    if len(plan.outputs) != 1:
+        elements = ", ".join(["torch.Tensor"] * len(plan.outputs)) or "()"
+        result = f"tuple[{elements}]"
+    lines.extend(["", f"    def forward({signature}) -> {result}:"])
     for call in plan.calls:
         lhs = ", ".join(call.outputs) + " = " if call.outputs else ""
         lines.append(f"        {lhs}{expression(call)}")

@@ -1,9 +1,9 @@
-import { memo, useEffect, useMemo, useState } from 'react';
-import { Background, Controls, Handle, Position, ReactFlow, useReactFlow, type Connection, type Edge,
+import { memo, useEffect, useMemo, useRef, useState } from 'react';
+import { Background, Controls, Handle, Position, ReactFlow, useNodesInitialized, useReactFlow, type Connection, type Edge,
   type Node, type NodeProps } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
 import { boundaryKey, connectionError, edgeKey, endpoint, handle, nodeKey, owner, portId, position,
-  type Graph, type Point, type Port, type Wire } from './model';
+  type Graph, type LayoutTile, type Point, type Port, type Wire } from './model';
 
 type Tile = Node<{ title: string; category: string; inputs: Port[]; outputs: Port[]; issue: boolean }, 'tile'>;
 export function project(g: Graph): Tile[] {
@@ -42,49 +42,68 @@ const GraphTile = memo(function GraphTile({ data, selected }: NodeProps<Tile>) {
 });
 const nodeTypes = { tile: GraphTile };
 
-export function Canvas({ graph, selection, select, onMove, onWire, onDropOp, issues, focus, error, reset }: {
+export function Canvas({ graph, selection, select, onMove, onWire, onLayout, onDropOp, issues, focus, error }: {
   graph: Graph; selection: string | null; select: (id: string | null) => void; onMove: (id: string, pos: Point) => void;
-  onWire: (w: Wire) => void; onDropOp: (id: string, pos: Point) => void; issues: Set<string>;
-  focus: { key: string; count: number } | null; error: (message: string) => void; reset: number;
+  onWire: (w: Wire, replacing?: string) => void; onLayout: (tiles: LayoutTile[]) => void; onDropOp: (id: string, pos: Point) => void; issues: Set<string>;
+  focus: { key: string; count: number } | null; error: (message: string) => void;
 }) {
   const flow = useReactFlow<Tile>();
+  const initialized = useNodesInitialized();
+  const [fitOnMount] = useState(() => !!(graph.nodes.length || graph.inputs.length || graph.outputs.length));
   const [live, setLive] = useState<Record<string, Point>>({});
+  // XYFlow clears internal bounds when a controlled node is supplied without its measurement.
+  const [measured, setMeasured] = useState<Record<string, NonNullable<Tile['measured']>>>({});
+  const reconnecting = useRef<string | undefined>(undefined);
+  const focused = useRef<typeof focus>(null);
   const base = useMemo(() => project(graph), [graph]);
-  const nodes = useMemo(() => base.map(n => ({ ...n, selected: n.id === selection, position: live[n.id] ?? n.position,
-    data: { ...n.data, issue: issues.has(n.id) } })), [base, live, selection, issues]);
+  const nodes = useMemo(() => base.map(n => {
+    return { ...n, selected: n.id === selection, position: live[n.id] ?? n.position,
+      measured: measured[n.id], data: { ...n.data, issue: issues.has(n.id) } };
+  }), [base, live, measured, selection, issues]);
   const edges = useMemo(() => Array.from(new Map(graph.edges.map(w => [edgeKey(w), w])).values(),
     w => ({ ...flowEdge(w), selected: edgeKey(w) === selection })), [graph.edges, selection]);
   useEffect(() => {
-    const timer = setTimeout(() => { if (flow.getNodes().length) void flow.fitView({ padding: 0.2, maxZoom: 1 }); }, 70);
-    return () => clearTimeout(timer);
-  }, [reset, flow]);
-  useEffect(() => {
-    if (!focus) return;
+    if (!initialized || !flow.viewportInitialized || !focus || focus === focused.current) return;
     const node = flow.getNode(focus.key);
-    if (node) void flow.setCenter(node.position.x + 80, node.position.y + 48, { zoom: 1, duration: 180 });
-  }, [focus, flow]);
+    if (!node?.measured?.width || !node.measured.height) return;
+    focused.current = focus;
+    void flow.fitView({ nodes: [node], padding: 0.25, maxZoom: Math.min(1, flow.getZoom()) });
+  }, [focus, flow, initialized]);
   return <section className="editor-canvas" aria-label="Graph canvas"
     onDragOver={e => { e.preventDefault(); e.dataTransfer.dropEffect = 'copy'; }}
     onDrop={e => { e.preventDefault(); const id = e.dataTransfer.getData('application/mlker-operation');
       if (id) onDropOp(id, flow.screenToFlowPosition({ x: e.clientX, y: e.clientY })); }}>
     <ReactFlow<Tile> nodes={nodes} edges={edges} nodeTypes={nodeTypes} colorMode="dark" minZoom={0.12} maxZoom={2}
+      fitView={fitOnMount} fitViewOptions={{ padding: 0.2, maxZoom: 1 }}
       deleteKeyCode={null} multiSelectionKeyCode={null} selectionKeyCode={null} selectNodesOnDrag={false}
       onNodeClick={(_, n) => select(n.id)} onEdgeClick={(_, e) => select(e.id)} onPaneClick={() => select(null)}
       onEdgesChange={changes => { for (const change of changes) {
         if (change.type === 'select' && change.selected) select(change.id);
       } }}
       onNodesChange={changes => { for (const c of changes) {
+        if (c.type === 'dimensions' && c.dimensions && c.dimensions.width > 0 && c.dimensions.height > 0) {
+          const { width, height } = c.dimensions;
+          setMeasured(old => old[c.id]?.width === width && old[c.id]?.height === height ? old :
+            { ...old, [c.id]: { width, height } });
+        }
         if (c.type === 'position' && c.position) {
           if (c.dragging) setLive(old => ({ ...old, [c.id]: c.position! }));
           else { onMove(c.id, c.position); setLive({}); }
         }
         if (c.type === 'select' && c.selected) select(c.id);
       } }}
-      isValidConnection={c => { const w = wire(c as Connection); return !!w && !connectionError(graph, w); }}
+      isValidConnection={c => { const w = wire(c as Connection); return !!w && !connectionError(graph, w, reconnecting.current); }}
+      onReconnectStart={(_, edge) => { reconnecting.current = edge.id; }}
+      onReconnectEnd={() => { reconnecting.current = undefined; }}
+      onReconnect={(edge, c) => { const w = wire(c); if (w) onWire(w, edge.id); }}
       onConnect={c => { const w = wire(c); if (w) onWire(w); }}
       onConnectEnd={(_, state) => { if (state.toNode && !state.isValid) error('Connection rejected. Check direction, tensor types, existing drivers, and cycles.'); }}>
       <Background gap={20} size={1} color="#43514d" /><Controls showInteractive={false} />
     </ReactFlow>
+    {!!nodes.length && <button className="auto-layout" disabled={!initialized} onClick={() => {
+      onLayout(nodes);
+      void flow.fitView({ padding: 0.2, maxZoom: 1 });
+    }}>Auto layout</button>}
     {!nodes.length && <div className="canvas-empty"><strong>Start your graph</strong><p>Add a model input or choose an operation from the library.</p></div>}
   </section>;
 }

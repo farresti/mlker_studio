@@ -82,3 +82,7 @@
   .inspector { grid-column: 1/-1; max-height: 245px; border-top: 1px solid var(--line); }
   .editor-panel { padding: 10px; }
 }
+
+.auto-layout { position: absolute; top: 12px; left: 12px; z-index: 5; }
+.react-flow__edge.selected .react-flow__edgeupdater,
+.react-flow__edgeupdater:hover { fill: var(--green); fill-opacity: 0.55; cursor: grab; }

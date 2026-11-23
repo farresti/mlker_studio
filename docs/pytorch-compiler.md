@@ -9,7 +9,7 @@ from mlker_graph.pytorch import compile_model
 project = compile_model(load_model("examples/models/v1/cnn.yaml"), "exports/cnn")
 ```
 
-The equivalent CLI is `python -m mlker_graph.pytorch examples/models/v1/cnn.yaml exports/cnn`. Use a new or empty directory. Repeating an identical export succeeds and preserves other files such as checkpoints. When generated files differ, choose a new directory so local edits survive. Files are staged together before publishing.
+The equivalent CLI is `python -m mlker_graph.pytorch examples/models/v1/cnn.yaml exports/cnn`. Choose a new directory, an empty directory, or a previous MLKer export. Recompiling replaces generated files, including local edits to them, and removes an obsolete generated `blocks.py`. Other files such as checkpoints are preserved. The compiler identifies earlier exports from their `config.json`.
 
 ## Generated project
 
@@ -21,7 +21,7 @@ The equivalent CLI is `python -m mlker_graph.pytorch examples/models/v1/cnn.yaml
 | `config.json` | Revision, compiler version, PyTorch requirement, specialized graph parameters, ordered interfaces, argument names and inferred output shapes |
 | `requirements.txt`, `README.md` | Runtime dependency and instructions |
 
-Load `Model` from the export package or import it from `model` with the export directory on the Python path. Initial weights use PyTorch defaults. The graph's public input order determines the positional arguments. A single output returns one tensor, multiple outputs return an ordered tuple, and a graph without outputs returns an empty tuple. Call `train()` or `eval()` to select batch normalization and dropout behavior.
+Load `Model` from the export package or import it from `model` with the export directory on the Python path. Initial weights use PyTorch defaults. The typed `forward` signature follows the graph's public input order. A single output returns one tensor, multiple outputs return an ordered tuple, and a graph without outputs returns an empty tuple. Call `train()` or `eval()` to select batch normalization and dropout behavior.
 
 ## Operations
 

@@ -61,6 +61,50 @@ function placed(graph: Graph, changes: Record<string, Point | null>): Graph {
   return { ...graph, extensions: { ...graph.extensions, 'mlker.editor': { ...extension, positions } } };
 }
 export const move = (doc: Document, key: string, point: Point) => updateGraph(doc, placed(current(doc), { [key]: point }));
+export interface LayoutTile { id: string; measured?: { width?: number; height?: number } }
+
+export function autoLayout(doc: Document, tiles: LayoutTile[]): Document {
+  const graph = current(doc);
+  const vertices = new Map(tiles.map(t => [t.id, { incoming: 0, next: [] as string[], depth: 0 }]));
+  for (const edge of graph.edges) {
+    const from = vertices.get(owner(edge.from)), to = vertices.get(owner(edge.to));
+    if (from && to) { from.next.push(owner(edge.to)); to.incoming++; }
+  }
+  // Longest dependency path sets each column. Cyclic drafts share a final column.
+  const queue = tiles.filter(t => !vertices.get(t.id)!.incoming).map(t => t.id);
+  let maxDepth = 0;
+  for (let i = 0; i < queue.length; i++) {
+    const vertex = vertices.get(queue[i])!;
+    maxDepth = Math.max(maxDepth, vertex.depth);
+    for (const id of vertex.next) {
+      const next = vertices.get(id)!;
+      next.depth = Math.max(next.depth, vertex.depth + 1);
+      if (--next.incoming === 0) queue.push(id);
+    }
+  }
+  const columns: LayoutTile[][] = [];
+  for (const tile of tiles) {
+    const vertex = vertices.get(tile.id)!;
+    const depth = vertex.incoming ? maxDepth + 1 : vertex.depth;
+    (columns[depth] ??= []).push(tile);
+  }
+  let x = 40;
+  const changes: Record<string, Point> = {};
+  for (const column of columns) {
+    if (!column) continue;
+    let y = 60, width = 0;
+    for (const tile of column) {
+      changes[tile.id] = { x, y };
+      y += (tile.measured?.height ?? 140) + 48;
+      width = Math.max(width, tile.measured?.width ?? 210);
+    }
+    x += width + 88;
+  }
+  const previous = layout(graph).positions;
+  if (tiles.every(({ id }) => previous?.[id]?.x === changes[id].x && previous[id].y === changes[id].y)) return doc;
+  return updateGraph(doc, placed(graph, changes));
+}
+
 function unique(base: string, ids: string[]) {
   const taken = new Set(ids);
   let id = base;
@@ -106,17 +150,18 @@ function lookup(g: Graph, e: Endpoint, source: boolean) {
   if (source && 'input' in e) return g.inputs.find(p => p.id === e.input);
   if (!source && 'output' in e) return g.outputs.find(p => p.id === e.output);
 }
-export function connectionError(g: Graph, w: Wire): string | null {
+export function connectionError(g: Graph, w: Wire, replacing?: string): string | null {
   const a = lookup(g, w.from, true), b = lookup(g, w.to, false);
   if (!a || !b) return 'Connect a source port to a destination port.';
-  if (g.edges.some(e => owner(e.to) === owner(w.to) && portId(e.to) === portId(w.to))) return 'This port already has a connection.';
+  const edges = replacing ? g.edges.filter(e => edgeKey(e) !== replacing) : g.edges;
+  if (edges.some(e => owner(e.to) === owner(w.to) && portId(e.to) === portId(w.to))) return 'This port already has a connection.';
   for (const field of ['dtype', 'layout'] as const) {
     if (a.tensor[field] && b.tensor[field] && a.tensor[field] !== b.tensor[field]) return 'Incompatible ' + field + '.';
   }
   const x = a.tensor.shape, y = b.tensor.shape;
   if (x && y && (x.length !== y.length || x.some((d, i) => typeof d === 'number' && typeof y[i] === 'number' && d !== y[i]))) return 'Incompatible tensor shapes.';
   const downstream = new Map<string, string[]>();
-  for (const edge of g.edges) {
+  for (const edge of edges) {
     const key = owner(edge.from);
     if (!downstream.has(key)) downstream.set(key, []);
     downstream.get(key)!.push(owner(edge.to));
@@ -129,9 +174,13 @@ export function connectionError(g: Graph, w: Wire): string | null {
   }
   return null;
 }
-export function connect(doc: Document, wire: Wire) {
+export function connect(doc: Document, wire: Wire, replacing?: string) {
   const g = current(doc);
-  if (connectionError(g, wire)) return doc;
+  if (connectionError(g, wire, replacing)) return doc;
+  if (replacing) {
+    if (edgeKey(wire) === replacing || !g.edges.some(e => edgeKey(e) === replacing)) return doc;
+    return updateGraph(doc, { ...g, edges: g.edges.map(e => edgeKey(e) === replacing ? { ...e, ...wire } : e) });
+  }
   return updateGraph(doc, { ...g, edges: [...g.edges, wire] });
 }
 export function parseParam(text: string, arg: Argument, graph: Graph): Value {
