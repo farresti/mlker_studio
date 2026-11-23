@@ -2,6 +2,7 @@ import { createRoot } from "react-dom/client";
 import { useEffect, useState } from "react";
 import { getStatus, type AppStatus } from "./status";
 import "./style.css";
+import { ModelBuilder } from "./editor/ModelBuilder";
 
 const modules = [
   { name: "ONNX Inspector", summary: "Inspect model graphs, operators, and tensor shapes.", motif: "graph" },
@@ -65,14 +66,19 @@ function SystemStatus() {
 }
 
 function App() {
-  const [page, navigate] = useState<Page>("Home");
+  const [page, setPage] = useState<Page>("Home");
+  const [builderVisited, setBuilderVisited] = useState(false);
+  function navigate(next: Page) {
+    if (next === "Model Builder") setBuilderVisited(true);
+    setPage(next);
+  }
   function navItem(name: Page) {
     return <button key={name} aria-current={page === name ? "page" : undefined}
       className="nav-item" onClick={() => navigate(name)}>{name}</button>;
   }
   const selected = modules.find(module => module.name === page);
 
-  return <div className="shell">
+  return <div className={page === "Model Builder" ? "shell builder-shell" : "shell"}>
     <aside>
       <div className="wordmark">MLKer <span>Studio</span></div>
       <nav aria-label="Workspace">
@@ -82,11 +88,11 @@ function App() {
       </nav>
     </aside>
     <main>
-      <header>
+      {page !== "Model Builder" && <header>
         <h1>{page === "Home" ? "Workspace overview" : page}</h1>
         <p>{page === "Home" ? "Your local environment for visual machine learning development."
           : selected?.summary ?? "Local application preferences."}</p>
-      </header>
+      </header>}
       {page === "Home" ? <>
         <section aria-labelledby="module-title">
           <h2 id="module-title">Modules</h2>
@@ -98,13 +104,14 @@ function App() {
           </div>
         </section>
         <SystemStatus />
-      </> : <section className="placeholder">
+      </> : page !== "Model Builder" && <section className="placeholder">
         {selected && <ModuleArt motif={selected.motif} />}
         <h2>{page === "Settings" ? "Preferences" : "Module preview"}</h2>
         <p>{page === "Settings" ? "Settings will be available in a later milestone."
           : `${page} tools will be available in a later milestone.`}</p>
         <button className="refresh" onClick={() => navigate("Home")}>Return to Home</button>
       </section>}
+      {builderVisited && <div hidden={page !== "Model Builder"}><ModelBuilder active={page === "Model Builder"} /></div>}
     </main>
   </div>;
 }

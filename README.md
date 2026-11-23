@@ -1,6 +1,6 @@
 # MLKer Studio
 
-A Linux desktop workspace for visual machine learning development. Milestone 0 delivers the application shell and a live Home dashboard. Open **Home → System status** to check the Rust backend, SQLite database and Python worker. The sidebar also opens the ONNX Inspector, Experiments, Model Builder and Settings placeholders.
+A Linux desktop workspace for visual machine learning development. Milestone 0 delivers the application shell and a live Home dashboard. Open **Home → System status** to check the Rust backend, SQLite database and Python worker. The sidebar opens Model Builder and the ONNX Inspector, Experiments, and Settings placeholders.
 
 ## Local setup on Ubuntu 24.04
 
@@ -105,12 +105,24 @@ assert all(p.grad is not None for p in model.parameters())
 
 The [compiler guide](docs/pytorch-compiler.md) covers the Python API, emitted files, supported operators, sharing, and diagnostics. Runtime tests run when the test interpreter can import PyTorch.
 
+## Build a model visually
+
+Install the graph dependencies in the Python environment used by the desktop. If you installed the graph package into `.venv` as above, launch with `MLKER_PYTHON="$PWD/.venv/bin/python" npm run desktop`. The default interpreter is `python3`.
+
+1. Open **Model Builder** and add **Input**, **Conv2d**, **ReLU**, **MaxPool2d**, **Flatten**, **Linear**, and **Output**. Click a library result to add it or drag it onto the canvas.
+2. Connect each output handle to the next input handle, or choose the upstream port under **Properties → Connections**. The supplied parameter suggestions match the default `[B, 1, 8, 8]` input, with 36 features entering Linear and five output scores.
+3. Select **Validate**, then **Save**. Use **New** and **Open** to reopen the saved YAML. Click a diagnostic to focus its node or port.
+4. Select **Compile** and choose an empty export directory. **Inspect generated source** opens the generated Python. To execute it, use the PyTorch example above with the generated directory on your import path.
+
+Model Builder edits the entry graph. Reusable block definitions are preserved and their implementation details are read-only in this milestone. Ctrl+S saves, Ctrl+Shift+S saves as, and Ctrl+Z or Ctrl+Shift+Z undo and redo canvas edits. Use Delete to remove the selected node, port, or connection. The editor can save schema-correct incomplete drafts.
+
 ## Checks
 
 Run these commands from the repository root after desktop and graph package setup.
 
 ```bash
 npm run typecheck
+npm test
 npm run build
 cargo check --locked --manifest-path src-tauri/Cargo.toml
 cargo test --locked --manifest-path src-tauri/Cargo.toml --no-default-features

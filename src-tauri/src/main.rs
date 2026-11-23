@@ -1,4 +1,8 @@
-use mlker_studio::{database, worker};
+use mlker_studio::{
+    database,
+    editor::{EditorError, EditorService},
+    worker,
+};
 use serde::Serialize;
 use std::ffi::OsString;
 use tauri::{path::BaseDirectory, Manager};
@@ -63,9 +67,26 @@ async fn app_status(app: tauri::AppHandle) -> AppStatus {
     }
 }
 
+#[tauri::command]
+async fn editor_request(
+    app: tauri::AppHandle,
+    state: tauri::State<'_, EditorService>,
+    method: String,
+    params: serde_json::Value,
+) -> Result<serde_json::Value, EditorError> {
+    let python = std::env::var_os("MLKER_PYTHON").unwrap_or_else(|| OsString::from("python3"));
+    let package = app
+        .path()
+        .resolve("python/mlker_worker", BaseDirectory::Resource)
+        .map_err(EditorError::transport)?;
+    state.request(&python, &package, &method, params).await
+}
+
 fn main() {
     tauri::Builder::default()
-        .invoke_handler(tauri::generate_handler![app_status])
+        .plugin(tauri_plugin_dialog::init())
+        .manage(EditorService::default())
+        .invoke_handler(tauri::generate_handler![app_status, editor_request])
         .run(tauri::generate_context!())
         .expect("could not run MLKer Studio");
 }

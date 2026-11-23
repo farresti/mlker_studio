@@ -10,13 +10,34 @@
     "frontendDist": "../dist"
   },
   "app": {
-    "windows": [{ "label": "main", "title": "MLKer Studio", "width": 1100, "height": 730, "minWidth": 680, "minHeight": 480 }],
-    "security": { "csp": "default-src 'self'; connect-src 'self' ipc: http://ipc.localhost; style-src 'self'; img-src 'self' data:" }
+    "windows": [
+      {
+        "label": "main",
+        "title": "MLKer Studio",
+        "width": 1100,
+        "height": 730,
+        "minWidth": 680,
+        "minHeight": 480,
+        "dragDropEnabled": false
+      }
+    ],
+    "security": {
+      "csp": "default-src 'self'; connect-src 'self' ipc: http://ipc.localhost; style-src 'self'; img-src 'self' data:"
+    }
   },
   "bundle": {
     "active": true,
-    "targets": ["deb"],
-    "icon": ["icons/icon.png"],
-    "resources": { "../python/mlker_worker/*.py": "python/mlker_worker/" }
+    "targets": [
+      "deb"
+    ],
+    "icon": [
+      "icons/icon.png"
+    ],
+    "resources": {
+      "../python/mlker_worker/*.py": "python/mlker_worker/",
+      "../python/mlker_graph/*.py": "python/mlker_graph/",
+      "../python/mlker_graph/*.json": "python/mlker_graph/",
+      "../python/mlker_graph/pytorch/*.py": "python/mlker_graph/pytorch/"
+    }
   }
 }

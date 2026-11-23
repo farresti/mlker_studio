@@ -74,10 +74,12 @@ def load_model(path: str | Path) -> ModelDocument:
         raise ModelError([Diagnostic("invalid_yaml", "error", message, Location(str(path)))]) from error
 
 
-def save_model(document: ModelDocument, path: str | Path) -> None:
+def save_model(document: ModelDocument, path: str | Path, *, draft: bool = False) -> None:
     from .validation import validate_model
 
-    diagnostics = validate_model(document)
+    from .schema import schema_diagnostics
+
+    diagnostics = schema_diagnostics(document) if draft else validate_model(document)
     if any(d.severity == "error" for d in diagnostics):
         raise ModelError(diagnostics)
     path = Path(path)

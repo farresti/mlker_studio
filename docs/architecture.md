@@ -1,6 +1,6 @@
 # MLKer Studio architecture
 
-Milestone 0 establishes one working path through the desktop stack. Opening Home checks the Rust backend, the local database and the Python interpreter. Refresh runs those checks again. ONNX Inspector, Experiments, Model Builder and Settings have navigable placeholders.
+Milestone 0 establishes one working path through the desktop stack. Opening Home checks the Rust backend, the local database and the Python interpreter. Refresh runs those checks again. ONNX Inspector, Experiments and Settings have navigable placeholders. Model Builder opens the visual editor.
 
 ## Repository map
 
@@ -69,3 +69,9 @@ Milestone 1 adds a sibling Python package, `mlker_graph`. Its API and validation
 4. `save_model` serializes the validated document, including unfamiliar source fields. The IR can be discarded and rebuilt after an edit.
 
 The [model format](model-format-v1.md) and [graph architecture decision](decisions/0003-model-graph.md) define the contract for a future editor and compiler. Milestone 2 implements the PyTorch backend in `python/mlker_graph/pytorch/`. It lowers the canonical IR into class plans with constructor calls, tensor values and parameter aliases, then renders and publishes the source project. Shape inference is local to each specialized graph call. The editor can consume the same validation and compilation APIs in a later milestone. See the [compiler guide](pytorch-compiler.md) and [export decision](decisions/0004-pytorch-export.md).
+
+## Visual Model Builder
+
+The editor in `src/editor/` projects the entry graph of a complete model document into an XYFlow canvas. Its model helpers update canonical endpoints, public port bindings and position extension data together. The Rust `EditorService` holds the persistent graph subprocess in a Tokio mutex, the asynchronous equivalent of a lock around the stdin/stdout exchange. Domain failures carry Python diagnostics through the Tauri invocation.
+
+Debounced validation keeps one request running and at most the latest pending document. Registry metadata comes from the existing Python registry. Native dialogs select local input and destination paths. The worker runs the existing graph validator, YAML serializer and PyTorch compiler. See the [editor decision](decisions/0005-visual-editor.md) and [wire protocol](worker-protocol.md).

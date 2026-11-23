@@ -37,3 +37,17 @@ Errors carry a machine-readable code and a human-readable message. The envelope 
 A bad request produces one error. A later valid request on the same stream can still succeed. Spawn failures, nonzero process exits, malformed replies and timeouts are transport failures surfaced by Rust in the worker's subsystem status.
 
 Incompatible wire-format changes require a new version. Future methods should transfer artifact references and compact metadata. Tensor buffers, images, checkpoints and event files belong on disk.
+
+## Editor protocol v2
+
+Rust starts the same worker with `--editor` and keeps its stdin and stdout open for the editor session. Frames are limited to 4 MiB, including LF. Rust correlates replies, allows one exchange at a time and gives each exchange 30 seconds. Protocol or transport failures replace the child on the next request. Domain errors preserve the process and may include a `diagnostics` array.
+
+| Method | Params | Result |
+| --- | --- | --- |
+| `registry` | Empty object | Registry contract `version: 1` and `operations` with port IDs, categories, parameter rules and suggested values |
+| `load` | Absolute YAML `path` | Parsed `document` |
+| `validate` | `document`, optional `source` | Structured `diagnostics` |
+| `save` | `document`, absolute YAML `path` | Written `path`. Structural schema errors block writes, and incomplete wiring can be saved. |
+| `compile` | `document`, absolute output directory `path`, optional `source` | Export `path` and `sources` keyed by generated Python filename |
+
+Registry, load, save, validation and source generation use the graph package dependencies. Running generated models is a separate operation.
