@@ -79,6 +79,12 @@ async fn editor_request(
         .path()
         .resolve("python/mlker_worker", BaseDirectory::Resource)
         .map_err(EditorError::transport)?;
+    if matches!(method.as_str(), "import_model" | "browse_timm") {
+        // Drop this child after one request. Imported Python cannot alter the editor worker.
+        return EditorService::default()
+            .request(&python, &package, &method, params)
+            .await;
+    }
     state.request(&python, &package, &method, params).await
 }
 

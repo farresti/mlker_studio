@@ -157,3 +157,7 @@ The [architecture](docs/architecture.md) describes the service boundaries, statu
 On Ubuntu 24.04.4 x86-64, the host initially exposed Rust/Cargo 1.84.1 and Python 3.12.3. Node.js and npm were missing from the shell. The desktop development packages missing from the host included `libgtk-3-dev`, `libwebkit2gtk-4.1-dev`, `libjavascriptcoregtk-4.1-dev`, `libsoup-3.0-dev`, `libxdo-dev`, `libssl-dev`, `libayatana-appindicator3-dev` and `librsvg2-dev`. The Ubuntu setup command above resolves their dependencies.
 
 Verification used temporary Node and Rust toolchains, extracted development packages and Xvfb. Type checking, the production frontend build, the desktop Cargo check, the Tauri executable build, seven Rust tests and three Python tests passed. Both the built executable and the development command opened a real Tauri window on the virtual display. Home displayed three ready services, all four placeholders opened, and status refreshed successfully. Separate launches with a missing interpreter and an unusable SQLite path each showed the affected service as unavailable while the other two stayed ready.
+
+## Import a PyTorch or timm model
+
+In **Model Builder → Import model**, choose a trusted PyTorch class or search the installed timm registry. Preview the graph, conversion quality and source hierarchy, then open it in the editor and save a new YAML document. The [model import guide](docs/model-import.md) includes a CPU walkthrough, checkpoint handling and the scope of numerical comparisons.

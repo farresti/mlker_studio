@@ -2,6 +2,7 @@
 
 import json
 import logging
+import os
 import platform
 import sys
 from pathlib import Path
@@ -92,6 +93,9 @@ if __name__ == "__main__":
         # Import only from the packaged application resource directory.
         sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
         from mlker_worker.editor import handle
-        serve(sys.stdin.buffer, sys.stdout.buffer, 2, 4 * 1024 * 1024, handle)
+        # Reserve the protocol stream before constructors or native libraries can print.
+        protocol_out = os.fdopen(os.dup(sys.stdout.fileno()), "wb")
+        os.dup2(sys.stderr.fileno(), sys.stdout.fileno())
+        serve(sys.stdin.buffer, protocol_out, 2, 4 * 1024 * 1024, handle)
     else:
         serve(sys.stdin.buffer, sys.stdout.buffer)

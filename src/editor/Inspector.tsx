@@ -28,8 +28,8 @@ function display(value: Value | undefined) {
   return typeof value === 'string' ? value : JSON.stringify(value);
 }
 
-export function Inspector({ graphId, openBlock, doc, selection, registry, edit, link, remove, invalid, rename }: {
-  graphId: string; openBlock: (key: string) => void; doc: Document; selection: string | null; registry: Operation[]; edit: (doc: Document) => void;
+export function Inspector({ readOnly, graphId, openBlock, doc, selection, registry, edit, link, remove, invalid, rename }: {
+  readOnly?: boolean; graphId: string; openBlock: (key: string) => void; doc: Document; selection: string | null; registry: Operation[]; edit: (doc: Document) => void;
   link: (wire: Wire, replacing?: string) => void; remove: (id: string) => void; invalid: Invalid; rename: (name: string) => void;
 }) {
   const g = current(doc, graphId);
@@ -53,7 +53,8 @@ export function Inspector({ graphId, openBlock, doc, selection, registry, edit, 
   const labelEndpoint = (e: Endpoint) => 'node' in e ? e.node + ' / ' + e.port : 'input' in e ? 'Input / ' + e.input : 'Output / ' + e.output;
   const idField = useRef<HTMLInputElement>(null);
   return <section className="inspector editor-panel" aria-label="Properties">
-    <h2>Properties</h2><h3>{title}</h3>
+    {readOnly && <p>Inspectable only</p>}
+    <fieldset className="property-fields" disabled={readOnly}><h2>Properties</h2><h3>{title}</h3>
     {!selection && <>
       {g.id !== doc.model.entry && <h4>Block definition / {g.id}</h4>}
       <Field label="Model name" value={doc.model.name} invalid={invalid} commit={name => {
@@ -130,5 +131,5 @@ export function Inspector({ graphId, openBlock, doc, selection, registry, edit, 
       })}</div>}
     {selectedEdge && <p className="panel-note">{labelEndpoint(selectedEdge.from)} → {labelEndpoint(selectedEdge.to)}</p>}
     {selection && <button className="delete-item" onClick={() => remove(selection)}>Delete {selectedEdge ? 'connection' : port ? 'port' : 'node'}</button>}
-  </section>;
+    </fieldset></section>;
 }

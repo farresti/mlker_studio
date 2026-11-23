@@ -52,6 +52,7 @@ unary = ("x",)
 binary = ("a", "b")
 out = ("out",)
 operations = (
+    Operation("core.Identity", "module", unary, out, {}),
     Operation("core.Conv2d", "module", unary, out, {
         "in_channels": Argument(positive), "out_channels": Argument(positive),
         "kernel_size": Argument(positive), "stride": Argument(positive, 1),
@@ -67,7 +68,7 @@ operations = (
     Operation("core.Reshape", "operator", unary, out, {"shape": Argument(Rule("ints"))}),
     Operation("core.Permute", "operator", unary, out, {"dims": Argument(Rule("ints"))}),
     Operation("core.MaxPool2d", "operator", unary, out, {
-        "kernel_size": Argument(positive), "stride": Argument(positive),
+        "kernel_size": Argument(positive), "stride": Argument(positive), "padding": Argument(nonnegative, 0),
     }, (3, 4)),
     Operation("core.Flatten", "operator", unary, out, {
         "start_dim": Argument(Rule("int"), 1), "end_dim": Argument(Rule("int"), -1),

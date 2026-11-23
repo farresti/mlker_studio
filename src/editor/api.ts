@@ -8,6 +8,10 @@ function request<T>(method: string, params: Record<string, unknown> = {}) {
 }
 const filters = [{ name: 'MLKer model', extensions: ['yaml', 'yml'] }];
 export const editor = {
+  browse: (query: string, pretrained_only: boolean, offset: number) =>
+    request<{models: {name: string; architecture: string; input_size: number[] | null; num_classes: number | null}[]; total: number}>(
+      'browse_timm', {query, pretrained_only, offset}),
+  importModel: (options: Record<string, unknown>) => request<{document: Document}>('import_model', options),
   async registry() {
     const data = await request<{ version: number; operations: Operation[] }>('registry');
     if (data.version !== 1) throw Error('Unsupported registry version.');

@@ -26,6 +26,12 @@ export function wire(c: Connection): Wire | null {
   return from && to ? { from, to } : null;
 }
 function portInfo(p: Port) {
+  const observation = p.extensions?.['mlker.observed'] ?? p.extensions?.['mlker.example'];
+  if (observation && typeof observation === 'object' && 'shape' in observation && Array.isArray(observation.shape)
+      && observation.shape.every(d => typeof d === 'number') && 'dtype' in observation && typeof observation.dtype === 'string') {
+    const label = p.extensions?.['mlker.observed'] ? 'Observed' : 'Example';
+    return label + ' · ' + observation.dtype + ' · [' + observation.shape.join(', ') + ']';
+  }
   return [p.tensor.dtype, p.tensor.shape?.map(d => d ?? '?').join(' × ')].filter(Boolean).join(' · ');
 }
 const GraphTile = memo(function GraphTile({ data, selected }: NodeProps<Tile>) {
@@ -42,8 +48,8 @@ const GraphTile = memo(function GraphTile({ data, selected }: NodeProps<Tile>) {
 });
 const nodeTypes = { tile: GraphTile };
 
-export function Canvas({ group, toggleGroup, openBlock, graph, selection, select, onMove, onWire, onLayout, onDropOp, issues, focus, error }: {
-  group?: string[] | null; toggleGroup?: (id: string) => void;
+export function Canvas({ readOnly, group, toggleGroup, openBlock, graph, selection, select, onMove, onWire, onLayout, onDropOp, issues, focus, error }: {
+  readOnly?: boolean; group?: string[] | null; toggleGroup?: (id: string) => void;
   openBlock?: (key: string) => void; graph: Graph; selection: string | null; select: (id: string | null) => void; onMove: (id: string, pos: Point) => void;
   onWire: (w: Wire, replacing?: string) => void; onLayout: (tiles: LayoutTile[]) => void; onDropOp: (id: string, pos: Point) => void; issues: Set<string>;
   focus: { key: string; count: number } | null; error: (message: string) => void;
@@ -74,7 +80,7 @@ export function Canvas({ group, toggleGroup, openBlock, graph, selection, select
     onDragOver={e => { e.preventDefault(); e.dataTransfer.dropEffect = 'copy'; }}
     onDrop={e => { e.preventDefault(); const id = e.dataTransfer.getData('application/mlker-operation');
       if (id) onDropOp(id, flow.screenToFlowPosition({ x: e.clientX, y: e.clientY })); }}>
-    <ReactFlow<Tile> nodes={nodes} edges={edges} nodeTypes={nodeTypes} colorMode="dark" minZoom={0.12} maxZoom={2}
+    <ReactFlow<Tile> nodes={nodes} edges={edges} nodeTypes={nodeTypes} nodesDraggable={!readOnly} nodesConnectable={!readOnly} edgesReconnectable={!readOnly} colorMode="dark" minZoom={0.12} maxZoom={2}
       fitView={fitOnMount} fitViewOptions={{ padding: 0.2, maxZoom: 1 }}
       deleteKeyCode={null} multiSelectionKeyCode={null} selectionKeyCode={null} selectNodesOnDrag={false}
       onNodeDoubleClick={(_, n) => { if (!group) openBlock?.(n.id); }}
@@ -102,7 +108,7 @@ export function Canvas({ group, toggleGroup, openBlock, graph, selection, select
       onConnectEnd={(_, state) => { if (state.toNode && !state.isValid) error('Connection rejected. Check direction, tensor types, existing drivers, and cycles.'); }}>
       <Background gap={20} size={1} color="#43514d" /><Controls showInteractive={false} />
     </ReactFlow>
-    {!!nodes.length && <button className="auto-layout" disabled={!initialized} onClick={() => {
+    {!readOnly && !!nodes.length && <button className="auto-layout" disabled={!initialized} onClick={() => {
       onLayout(nodes);
       void flow.fitView({ padding: 0.2, maxZoom: 1 });
     }}>Auto layout</button>}

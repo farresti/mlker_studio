@@ -12,7 +12,7 @@ vi.mock('./Canvas', () => ({ Canvas: ({graph,openBlock}: {graph: Graph; openBloc
 vi.mock('./api', async (importOriginal) => {
   const original = await importOriginal<typeof import('./api')>();
   return { ...original, editor: {
-    registry: vi.fn(), load: vi.fn(), validate: vi.fn(), save: vi.fn(), compile: vi.fn(),
+    registry: vi.fn(), browse: vi.fn(), importModel: vi.fn(), load: vi.fn(), validate: vi.fn(), save: vi.fn(), compile: vi.fn(),
     openPath: vi.fn(), savePath: vi.fn(), exportPath: vi.fn(), discard: vi.fn(),
   } };
 });
@@ -157,5 +157,59 @@ it('adds a trusted Python node and saves its typed override and registration ide
     await act(async () => [...container.querySelectorAll('button')].find(b => b.textContent === 'Save')!.click());
     const saved = vi.mocked(editor.save).mock.calls.at(-1)![0];
     expect(saved.graphs[0].nodes[0]).toMatchObject({kind:'python',implementation:impl,...contracts,params:{factor:3.5}});
+  } finally { await act(async () => root.unmount()); }
+});
+
+it('keeps the current model when registry discovery fails in the import dialog', async () => {
+  const container = document.createElement('div'), root = createRoot(container);
+  vi.mocked(editor.registry).mockResolvedValue([]);
+  vi.mocked(editor.browse).mockRejectedValue(new Error('Install timm in MLKER_PYTHON'));
+  try {
+    await act(async () => root.render(<ModelBuilder active />));
+    const click = async (name:string) => {
+      const button = [...container.querySelectorAll('button')].find(b => b.textContent === name)!;
+      await act(async () => button.click());
+    };
+    await click('Import model');
+    const source = container.querySelector<HTMLSelectElement>('dialog select')!;
+    await act(async () => { source.value='timm'; source.dispatchEvent(new Event('change',{bubbles:true})); });
+    await click('Search installed registry');
+    expect(container.querySelector('[role=alert]')?.textContent).toContain('Install timm');
+    await click('Close');
+    expect(container.querySelector('dialog')).toBeNull();
+    expect(container.querySelector('h1')?.textContent).toBe('Untitled model');
+    expect(editor.load).not.toHaveBeenCalled();
+  } finally { await act(async () => root.unmount()); }
+});
+
+it('accepts an inspectable import as an unsaved document and keeps its graph read-only', async () => {
+  const imported = newModel();
+  imported.model.name = 'Imported composite';
+  imported.model.provenance = {quality:'inspectable only', source_identity:'example', strategy:'module_tree',
+    warnings:['Composite requested'], verification:{status:'unverified'}, weights:{format:'architecture only'}, hierarchy:[]};
+  vi.mocked(editor.importModel).mockResolvedValue({document:imported});
+  vi.mocked(editor.registry).mockResolvedValue([]);
+  const container = document.createElement('div'), root = createRoot(container);
+  await act(async () => root.render(<ModelBuilder active />));
+  const click = async (label:string) => {
+    const button = [...container.querySelectorAll('button')].find(b => b.textContent === label)!;
+    await act(async () => button.click());
+  };
+  try {
+    await click('Import model');
+    const source = container.querySelector<HTMLSelectElement>('dialog select')!;
+    await act(async () => {source.value='timm'; source.dispatchEvent(new Event('change',{bubbles:true}));});
+    const name = [...container.querySelectorAll('label')].find(l => l.textContent === 'Registry model name')!.querySelector('input')!;
+    await act(async () => {
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value')!.set!.call(name,'resnet18');
+      name.dispatchEvent(new Event('input',{bubbles:true}));
+    });
+    await click('Preview import');
+    expect(editor.importModel).toHaveBeenCalledWith(expect.objectContaining({pretrained:false,source:'timm',identity:'resnet18'}));
+    expect(container.querySelector('h1')?.textContent).toBe('Untitled model');
+    await click('Open in editor');
+    expect(container.querySelector('h1')?.textContent).toBe('Imported composite');
+    expect(container.textContent).toContain('Unsaved changes');
+    expect(container.querySelector('.property-fields')?.hasAttribute('disabled')).toBe(true);
   } finally { await act(async () => root.unmount()); }
 });

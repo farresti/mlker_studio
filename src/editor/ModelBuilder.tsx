@@ -5,6 +5,7 @@ import { getCurrentWindow } from '@tauri-apps/api/window';
 import { backendError, editor } from './api';
 import { Canvas } from './Canvas';
 import { BlockSelection } from './BlockSelection';
+import { ImportModel } from './ImportModel';
 import { Inspector } from './Inspector';
 import { addBlock, graphPath, extractBlock, addBoundary, addNode, autoLayout, boundaryKey, connect, connectionError, current, edgeKey, history, move, newModel,
   nodeKey, owner, removeItem, renameBoundary, type Diagnostic, type Document, type Graph, type Operation, type Point, type Wire } from './model';
@@ -38,6 +39,7 @@ export function ModelBuilder({ active }: { active: boolean }) {
   const initial = useMemo(newModel, []);
   const [state, dispatch] = useReducer(history, { doc: initial, past: [], future: [] });
   const { doc } = state;
+  const [importing, setImporting] = useState(false);
   const [trail, setTrail] = useState<string[]>([]);
   const [group, setGroup] = useState<string[] | null>(null);
   const crumbs = [doc.model.entry];
@@ -46,6 +48,7 @@ export function ModelBuilder({ active }: { active: boolean }) {
     crumbs.push(graphId);
   }
   const g = current(doc, crumbs.at(-1)!);
+  const readOnly = doc.model.provenance?.quality === 'inspectable only';
   function navigate(path: string[]) {
     setTrail(path); setGroup(null); select(null); setFocus(null);
   }
@@ -93,7 +96,7 @@ export function ModelBuilder({ active }: { active: boolean }) {
   const selection = selected && (g.nodes.some(n => nodeKey(n.id) === selected) ||
     g.inputs.some(p => boundaryKey('input', p.id) === selected) || g.outputs.some(p => boundaryKey('output', p.id) === selected) ||
     g.edges.some(e => edgeKey(e) === selected)) ? selected : null;
-  const edit = (next: Document) => { if (locked.current) return; dispatch({ type: 'edit', doc: next }); setExtra([]); setMessage(''); setOutput(null); };
+  const edit = (next: Document) => { if (locked.current || readOnly) return; dispatch({ type: 'edit', doc: next }); setExtra([]); setMessage(''); setOutput(null); };
   function jump(key: string) { select(key); setFocus(old => ({ key, count: (old?.count ?? 0) + 1 })); }
   function add(id: string, point?: Point) {
     if (locked.current) return;
@@ -151,7 +154,7 @@ export function ModelBuilder({ active }: { active: boolean }) {
   useEffect(() => {
     if (!active) return;
     const shortcut = (e: KeyboardEvent) => {
-      if (busy || inspect) return;
+      if (busy || inspect || importing) return;
       const typing = e.target instanceof HTMLElement && !!e.target.closest('input, select, textarea, [contenteditable=true]');
       const key = e.key.toLowerCase(), mod = e.ctrlKey || e.metaKey;
       if (mod && ['s','o','n'].includes(key)) {
@@ -172,18 +175,25 @@ export function ModelBuilder({ active }: { active: boolean }) {
     <div className="editor-tools" role="toolbar" aria-label="Model actions">
       {(['New','Open','Save','Save as'] as const).map(kind => <button key={kind}
         disabled={!!busy || (kind.startsWith('Save') && !!invalidFields.size)} onClick={() => void action(kind)}>{kind}</button>)}
+      <button disabled={!!busy} onClick={() => setImporting(true)}>Import model</button>
       <span className="tool-separator" />
       <button disabled={!!busy || !state.past.length} onClick={() => timeTravel('undo')}>Undo</button>
       <button disabled={!!busy || !state.future.length} onClick={() => timeTravel('redo')}>Redo</button>
       <span className="tool-space" /><button disabled={!registry.length || !!busy || !!invalidFields.size} onClick={() => { setExtra([]); validation.validate(); }}>Validate</button>
-      <button className="compile-btn" disabled={!registry.length || !!busy || !!invalidFields.size} onClick={() => void action('Compile')}>{busy === 'Compile' ? 'Compiling…' : 'Compile'}</button>
+      <button className="compile-btn" disabled={readOnly || !registry.length || !!busy || !!invalidFields.size} onClick={() => void action('Compile')}>{busy === 'Compile' ? 'Compiling…' : 'Compile'}</button>
     </div>
+    {importing && <ImportModel close={() => setImporting(false)} accept={async imported => {
+      if (dirty && !(await editor.discard())) return;
+      replace(imported, null); setSaved(initial); setImporting(false);
+    }} />}
+    {typeof doc.model.provenance?.quality === 'string' && <details><summary>Quality at import · <strong>{doc.model.provenance.quality}</strong></summary>
+      <pre className="import-report">{JSON.stringify(doc.model.provenance, null, 2)}</pre></details>}
     {(message || busy && busy !== 'Compile') && <p className="editor-message" role="status">{busy ? busy + '…' : message}</p>}
     <nav className="graph-crumbs" aria-label="Graph breadcrumbs">{crumbs.map((id,i) =>
       <button key={id} aria-current={i === crumbs.length-1 ? 'page' : undefined} onClick={() => navigate(crumbs.slice(1,i+1))}>
         {i ? 'Definition / ' : 'Model / '}{id}</button>)}</nav>
     <div className="editor-workspace" inert={!!busy}>
-      <section className="library editor-panel" aria-label="Node library"><h2>Node library</h2>
+      <section inert={readOnly} className="library editor-panel" aria-label="Node library"><h2>Node library</h2>
         <input type="search" aria-label="Search operations" placeholder="Search operations" value={query} onChange={e => setQuery(e.target.value)} />
         <h4>Graph ports</h4><div className="boundary-actions"><button onClick={() => add('input')}>+ Input</button><button onClick={() => add('output')}>+ Output</button></div>
         {registryError ? <p className="panel-note" role="alert">{registryError} <button onClick={() => setRetry(n => n + 1)}>Retry</button></p>
@@ -203,11 +213,11 @@ export function ModelBuilder({ active }: { active: boolean }) {
         })}
         {!!registry.length && !offered.length && <p className="panel-note">No matching operations.</p>}
       </section>
-      <ReactFlowProvider key={reset + g.id}><Canvas group={group}
+      <ReactFlowProvider key={reset + g.id}><Canvas readOnly={readOnly} group={group}
         toggleGroup={id => setGroup(previous => previous?.includes(id) ? previous.filter(n => n !== id) : [...previous ?? [], id])}
         openBlock={openBlock} graph={g} selection={selection} select={select} focus={focus}
         issues={flagged} error={setMessage} onDropOp={add} onWire={link} onLayout={tiles => edit(autoLayout(doc, tiles, g.id))} onMove={(id, pos) => edit(move(doc, id, pos, g.id))} /></ReactFlowProvider>
-      <Inspector graphId={g.id} openBlock={openBlock} key={reset + g.id + '/' + selection} doc={doc} selection={selection} registry={registry} edit={edit} link={link}
+      <Inspector readOnly={readOnly} graphId={g.id} openBlock={openBlock} key={reset + g.id + '/' + selection} doc={doc} selection={selection} registry={registry} edit={edit} link={link}
         invalid={invalid} remove={remove} rename={id => { if (!selection) return;
           const [side, old] = selection.split(':') as ['input' | 'output', string];
           try { edit(renameBoundary(doc, side, old, id, g.id)); select(boundaryKey(side, id)); } catch (e) { setMessage(backendError(e).message); }

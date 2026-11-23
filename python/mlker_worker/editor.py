@@ -105,6 +105,21 @@ def operation(method, params):
     from mlker_graph.pytorch import CompileError, compile_model
 
     try:
+        if method == "browse_timm":
+            from mlker_import.sources import browse
+            return browse(params.get("query", ""), params.get("pretrained_only") is True, max(0, int(params.get("offset", 0))))
+        if method == "import_model":
+            from mlker_import import import_model
+            try:
+                imported = import_model(params)
+            except ImportError:
+                raise
+            except PermissionError as exc:
+                raise EditorError("import_permission", str(exc)) from exc
+            except Exception as exc:
+                raise EditorError("import_failed", f"{type(exc).__name__}: {exc}") from exc
+            check_editable(imported)
+            return {"document": imported.data}
         if method == "registry":
             return registry()
         if method == "load":

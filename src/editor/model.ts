@@ -3,7 +3,7 @@
 export type Value = string | number | boolean | number[] | { $param: string };
 export type Dim = number | string | null;
 export interface Tensor { dtype?: string | null; shape?: Dim[] | null; layout?: string | null }
-export interface Port { id: string; name?: string; tensor: Tensor; required?: boolean }
+export interface Port { extensions?: Record<string, unknown>; id: string; name?: string; tensor: Tensor; required?: boolean }
 export interface OpNode { id: string; name?: string; kind: string; registry?: string; block?: string;
   implementation?: Implementation; instance_id?: string; parameter_ids?: Record<string,string>;
   inputs: Port[]; outputs: Port[]; params?: Record<string, Value> }
@@ -13,7 +13,7 @@ export interface Point { x: number; y: number }
 export interface Graph { id: string; inputs: Port[]; outputs: Port[]; nodes: OpNode[]; edges: Wire[];
   parameters?: { id: string; type: string; default: Value }[]; extensions?: Record<string, unknown> }
 export interface Document { format: string; schema_version: number; blocks?: { id: string; graph: string }[];
-  model: { id: string; revision: string; name: string; entry: string; inputs: string[]; outputs: string[] }; graphs: Graph[] }
+  model: { provenance?: Record<string, unknown>; id: string; revision: string; name: string; entry: string; inputs: string[]; outputs: string[] }; graphs: Graph[] }
 export interface Argument { type: string; minimum: number | null; maximum: number | null; default: Value | null; initial: Value }
 export interface Implementation { id?: string; package: string; symbol: string; version?: string }
 export interface Operation { id: string; name: string; kind: string; inputs: string[]; outputs: string[];

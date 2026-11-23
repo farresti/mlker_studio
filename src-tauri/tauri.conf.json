@@ -34,6 +34,7 @@
       "icons/icon.png"
     ],
     "resources": {
+      "../python/mlker_import/*.py": "python/mlker_import/",
       "../python/mlker_worker/*.py": "python/mlker_worker/",
       "../python/mlker_graph/*.py": "python/mlker_graph/",
       "../python/mlker_graph/*.json": "python/mlker_graph/",

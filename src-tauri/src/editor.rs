@@ -115,7 +115,8 @@ impl EditorService {
             *state = Some(process);
             return Err(EditorError::transport("Editor request exceeds 4 MiB."));
         }
-        let reply = timeout(Duration::from_secs(30), process.exchange(&frame, &id))
+        let seconds = if method == "import_model" { 600 } else { 30 };
+        let reply = timeout(Duration::from_secs(seconds), process.exchange(&frame, &id))
             .await
             .map_err(|_| {
                 EditorError::transport(

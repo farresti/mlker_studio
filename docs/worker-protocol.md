@@ -53,3 +53,14 @@ Rust starts the same worker with `--editor` and keeps its stdin and stdout open 
 Registry, load, save, validation and source generation use the graph package dependencies. Running generated models is a separate operation.
 
 Registered Python entries use kind `python`. Their `implementation` object identifies the trusted registration and `contracts` contains the ordered input/output port records. The worker reads the manifest selected at launch by `MLKER_TRUSTED_REGISTRY`. A registration or access failure returns structured diagnostics.
+
+### Model import methods
+
+The desktop runs each of these requests in a fresh worker. Constructor prints and native-library logs go to stderr.
+
+| Method | Parameters | Result |
+| --- | --- | --- |
+| `browse_timm` | Optional substring `query`, flag `pretrained_only` and nonnegative `offset` | Up to 50 local model names with available metadata and total count |
+| `import_model` | `source`, `identity`, constructor `config`, `strategy`, example `inputs`, `verify`, optional `checkpoint` and `weights_dir` | New v2 document with import report in model provenance |
+
+PyTorch constructors require the boolean `trusted: true`. timm defaults to `pretrained: false`. The worker accepts installed registry identities. Source, dependency, trust and conversion failures are returned to the import dialog. See the [import workflow](model-import.md).

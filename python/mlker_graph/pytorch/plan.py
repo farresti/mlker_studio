@@ -50,6 +50,7 @@ class Call:
 class ClassPlan:
     name: str
     inputs: dict[str, str]
+    module_paths: dict[str, str] = field(default_factory=dict)
     layers: list[Layer] = field(default_factory=list)
     ties: list[tuple[str, str]] = field(default_factory=list)
     calls: list[Call] = field(default_factory=list)

@@ -9,6 +9,7 @@ from .plan import Call, ClassPlan, Layer, Names, fail
 from .shapes import ShapeError, infer, merge
 
 MODULES = {
+    "core.Identity": "nn.Identity",
     "core.Linear": "nn.Linear", "core.Conv2d": "nn.Conv2d",
     "core.BatchNorm2d": "nn.BatchNorm2d", "core.Dropout": "nn.Dropout",
 }
@@ -77,6 +78,7 @@ class Instances:
                 tie = (path, first)
                 if first != path and tie not in self.plan.ties:
                     self.plan.ties.append(tie)
+        self.plan.module_paths[node.id] = layer.name
         return "self." + layer.name
 
 

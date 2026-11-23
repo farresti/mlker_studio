@@ -73,7 +73,7 @@ def render_project(model, lowering, entry, inferred, schema_version):
         "entry_graph": model.entry.id,
         "inputs": [{**interface(p), "argument": entry.inputs[p.id]} for p in model.inputs],
         "outputs": [{**interface(p), "inferred_shape": shape} for p, shape in zip(model.outputs, inferred)],
-        "classes": [{"class": plan.name, "graph": graph_id, "parameters": dict(params)}
+        "classes": [{"class": plan.name, "graph": graph_id, "parameters": dict(params), "module_paths": plan.module_paths}
                     for (graph_id, params), plan in lowering.classes.items()],
     }
     extensions = lowering.extensions
@@ -111,6 +111,27 @@ compatible trained weights. Configuration records the exported specialization.
     if extensions:
         readme += "\nInstall the reviewed extension packages listed in config.json in this environment before importing Model. Their implementations execute in this Python process.\n"
         readme = readme.replace("--index-url https://download.pytorch.org/whl/cpu ", "")
+    if model.provenance.get("source_format") in ("pytorch", "timm"):
+        config["import_provenance"] = model.provenance
+        readme += """
+## Imported architecture
+
+Use eval mode to reproduce the captured inference graph. The comparison in
+config.json describes the architecture at import time. After edits, verify again.
+Model() initializes fresh parameters. If the import saved a generated state_dict,
+load it before inference with the following code:
+
+```python
+import json
+from pathlib import Path
+
+info = json.loads(Path("config.json").read_text())["import_provenance"]
+weights = info.get("weights", {})
+if weights.get("format") == "generated state_dict":
+    model.load_state_dict(torch.load(weights["path"], map_location="cpu", weights_only=True))
+model.eval()
+```
+"""
     files = {
         "model.py": module_source([entry], extensions, imports), "__init__.py": "from .model import Model\n",
         "config.json": json.dumps(config, indent=2, ensure_ascii=False) + "\n",
